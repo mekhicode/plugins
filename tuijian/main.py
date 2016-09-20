@@ -4,7 +4,7 @@
 import json
 import jieba
 from jieba.analyse import extract_tags
-dir_temp = '/Users/mekhitang/software/leancloud_data/CameliaOfficialProducts.json'
+dir_temp = 'xxx.json'
 file = open(dir_temp)
 file_data = file.read()
 
