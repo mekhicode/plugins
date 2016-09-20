@@ -1,0 +1,87 @@
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key 505A7412
+
+echo "deb [arch=amd64] http://s3.amazonaws.com/tokumx-debs $(lsb_release -cs) main" \
+| sudo tee /etc/apt/sources.list.d/tokumx.list
+
+
+sudo apt-key finger 505A7412
+/etc/apt/trusted.gpg
+
+sudo apt-get update && sudo apt-get install tokumx
+
+sudo vi /etc/tokumx.conf
+auth = true
+port = 27017
+bind_ip = 127.0.0.1
+replSet=<replSet name>
+
+
+# backup and migration
+sudo service tokumx stop
+sudo mongodump --dbpath /var/lib/mongodb --out /var/lib/mongodb.backup
+mongorestore /var/lib/mongodb.backup
+
+# Replica Set
+mongo
+> rs.initiate()
+> rs.add('<host name>:<port>')
+
+sudo service tokumx restart
+
+tail -f /var/log/tokumx/tokumx.log
+
+
+# Replica Set(n) + Config server(n) + Mongos(n) + Arbiter(1)
+
+sudo mkdir -p /var/lib/data/tokumx/{db,log,configdb,configlog,mongoslog}
+sudo chown -R tokumx:tokumx /var/lib/data/tokumx/
+sudo mkdir /etc/tokumx/
+
+sudo vim /etc/tokumx.conf
+dbpath = /var/lib/data/tokumx/db
+logpath = /var/lib/data/tokumx/log/tokumx.log
+logappend = true
+port = 27010
+# fork = true
+replSet = kanche
+pidfilepath = /var/run/tokumx-server.pid
+# Add the fastsync=true option to /etc/tokumx.conf on all secondaries
+
+sudo service tokumx start
+
+sudo cp /etc/init.d/tokumx /etc/init.d/tokumx-configsvr
+sudo vim /etc/init.d/tokumx-configsvr
+NAME=tokumx-configsvr
+CONF=/etc/tokumx/configsvr.conf
+
+sudo vim /etc/tokumx/configsvr.conf
+configsvr = true
+dbpath = /var/lib/data/tokumx/configdb
+logpath = /var/lib/data/tokumx/configlog/tokumx-configsvr.log
+logappend = true
+port = 27015
+
+sudo service tokumx-configsvr start
+
+sudo cp /etc/init.d/tokumx /etc/init.d/tokumx-mongos
+sudo vim /etc/init.d/tokumx-mongos
+DAEMON=/usr/bin/mongos
+NAME=tokumx-mongos
+CONF=/etc/tokumx/mongos.conf
+
+sudo vim /etc/tokumx/mongos.conf
+configdb = <config server hostname1>:<config server port1>,<config server hostname2>:<config server port2>
+# 10.10.10.12:27015,10.10.10.13:27015,10.10.10.14:27015
+logpath = /var/lib/data/tokumx/mongoslog/mongos.log
+logappend = true
+port = 27017
+
+sudo service tokumx-mongos start
+
+mongo
+> use admin
+> db.runCommand({addshard:"<replica name>/<host1>:<port1>,<host2>:<port2>",name:"<shard name>"})
+# db.runCommand({addshard:"kanche/10.10.10.12:27010,10.10.10.13:27010,10.10.10.14:27010",name:"kanche"})
+> db.runCommand({listshards:1})
+> db.runCommand({ismaster:1})
+> printShardingStatus()

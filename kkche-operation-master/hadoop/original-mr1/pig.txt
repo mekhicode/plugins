@@ -1,0 +1,19 @@
+
+tar xfz pig-0.11.1.tar.gz
+sudo mv pig-0.11.1 /opt
+sudo chown -R `whoami`:root /opt/pig-0.11.1
+
+sudo vi /etc/profile.d/pig.sh
+export PIG_HOME=/opt/pig-0.11.1
+export PATH=$PIG_HOME/bin:$PATH
+
+sudo vi /etc/profile.d/hadoop.sh
+export HADOOP_HOME=/opt/hadoop-1.1.2
+export PATH=$HADOOP_HOME/bin:$PATH
+
+$PIG_HOME/bin/pig
+grunt> ls
+grunt> A = LOAD 'input';
+grunt> B = FILTER A BY $0 MATCHES '.*dfs[a-z.]+.*';
+grunt> DUMP B;
+

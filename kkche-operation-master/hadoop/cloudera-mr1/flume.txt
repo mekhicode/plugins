@@ -1,0 +1,40 @@
+
+sudo apt-get install flume-ng flume-ng-agent
+
+sudo cp -R /etc/flume-ng/conf.empty /etc/flume-ng/conf.dist
+
+sudo update-alternatives --display flume-ng-conf
+sudo update-alternatives --install /etc/flume-ng/conf flume-ng-conf /etc/flume-ng/conf.dist 40
+sudo update-alternatives --set flume-ng-conf /etc/flume-ng/conf.dist
+sudo update-alternatives --config flume-ng-conf
+
+sudo -u hdfs hadoop fs -mkdir /flume
+sudo -u hdfs hadoop fs -chown flume /flume
+
+sudo usermod -a -G hadoop flume
+
+hbase shell
+> create 'flume', 'log'
+> describe 'flume'
+
+sudo vi /etc/flume-ng/conf/flume.conf
+agent.sources = tailSrc
+agent.channels = memoryChannel
+agent.sinks = hdfsSink hbaseSink
+agent.sources.tailSrc.type = exec
+agent.sources.tailSrc.command = tail -f /var/log/flume-ng/flume.log
+agent.sources.tailSrc.channels = memoryChannel
+agent.sinks.hdfsSink.type = hdfs
+agent.sinks.hdfsSink.hdfs.path = hdfs://<namenode-host>:8020/flume
+agent.sinks.hdfsSink.channel = memoryChannel
+agent.sinks.hbaseSink.type = org.apache.flume.sink.hbase.AsyncHBaseSink
+agent.sinks.hbaseSink.table = flume
+agent.sinks.hbaseSink.columnFamily = log
+agent.sinks.hbaseSink.serializer = org.apache.flume.sink.hbase.SimpleAsyncHbaseEventSerializer
+agent.sinks.hbaseSink.serializer.payloadColumn = flume
+agent.sinks.hbaseSink.channel = memoryChannel
+agent.channels.memoryChannel.type = memory
+agent.channels.memoryChannel.capacity = 100
+
+sudo service flume-ng-agent restart
+

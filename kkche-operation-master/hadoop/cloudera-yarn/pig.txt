@@ -1,0 +1,11 @@
+
+sudo apt-get install pig
+
+sudo update-alternatives --display pig-conf
+
+pig
+grunt> ls
+grunt> A = LOAD 'input';
+grunt> B = FILTER A BY $0 MATCHES '.*dfs[a-z.]+.*';
+grunt> DUMP B;
+

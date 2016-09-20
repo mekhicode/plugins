@@ -1,0 +1,34 @@
+
+sudo apt-get install \
+libboost-dev libboost-test-dev libboost-program-options-dev libevent-dev automake libtool flex bison pkg-config g++ libssl-dev \
+ruby-full ruby-dev librspec-ruby rake rubygems libdaemons-ruby libgemplugin-ruby mongrel \
+python-dev python-twisted \
+libbit-vector-perl \
+php5-dev php5-cli \
+libglib2.0-dev \
+erlang-base erlang-eunit erlang-dev
+
+sudo gem install bundler rake
+sudo gem install rspec -v 2.10.0
+sudo gem install mongrel -v 1.2.0.pre2
+
+cd /tmp/ && wget http://archive.apache.org/dist/thrift/0.9.0/thrift-0.9.0.tar.gz
+
+tar xzf thrift-0.9.0.tar.gz
+
+chmod -R u+x thrift-0.9.0 && cd thrift-0.9.0
+
+sudo ./configure --with-c_glib=yes
+
+sudo make
+
+cd /tmp/thrift-0.9.0/lib/rb/ext
+bundle install
+
+sudo make install
+
+sudo make clean
+
+thrift -version
+
+cd /tmp/ && sudo rm -rf /tmp/thrift-0.9.0*

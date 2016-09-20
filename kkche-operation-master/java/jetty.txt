@@ -1,0 +1,39 @@
+
+JETTY_VERSION=8.1.8.v20121106
+
+cd /tmp/
+wget http://download.eclipse.org/jetty/$JETTY_VERSION/dist/jetty-distribution-$JETTY_VERSION.tar.gz
+tar xfz jetty-distribution-$JETTY_VERSION.tar.gz
+sudo mv jetty-distribution-$JETTY_VERSION /opt/jetty
+
+#sudo useradd jetty -U -s /bin/false
+sudo chown -R user:root /opt/jetty
+
+sudo cp /opt/jetty/bin/jetty.sh /etc/init.d/jetty
+
+sudo vi /etc/default/jetty
+JAVA_HOME=/usr/lib/jvm/jdk1.6.0_33
+NO_START=0
+JETTY_HOST=0.0.0.0
+JETTY_PORT=8085
+JETTY_USER=user
+
+sudo vi /opt/jetty/start.ini
+--exec
+-Xmx8192m 
+-XX:MaxPermSize=4096m
+-Djava.awt.headless=true
+
+sudo update-rc.d jetty defaults
+
+java -jar start.jar
+sudo /etc/init.d/jetty start
+
+netstat -tln
+
+sudo touch /tmp/.ehcache-diskstore.lock
+sudo chown jetty:jetty /tmp/.ehcache-diskstore.lock
+
+export DISPLAY=:0
+xhost + localhost
+

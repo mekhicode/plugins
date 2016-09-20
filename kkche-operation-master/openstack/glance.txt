@@ -1,0 +1,59 @@
+
+#image service
+
+#on the controller node
+# apt-get install glance python-glanceclient
+
+# vi /etc/glance/glance-api.conf
+# vi /etc/glance/glance-registry.conf
+sql_connection = mysql://glance:<glance_dbpass>@<controller-host>/glance
+
+# rm /var/lib/glance/glance.sqlite
+
+mysql -u root -p
+> create database glance;
+> grant all privileges on glance.* to 'glance'@'localhost' identified by '<glance_dbpass>';
+> grant all privileges on glance.* to 'glance'@'%' identified by '<glance_dbpass>';
+> flush privileges;
+
+# glance-manage db_sync
+
+# keystone user-create --name=glance --pass=<glance_pass> --email=glance@example.com
+# keystone user-role-add --user=glance --tenant=service --role=admin
+
+# vi /etc/glance/glance-api.conf
+# vi /etc/glance/glance-registry.conf
+[keystone_authtoken]
+auth_host = <controller-host>
+auth_port = 35357
+auth_protocol = http
+admin_tenant_name = service
+admin_user = glance
+admin_password = <glance_pass>
+
+# vi /etc/glance/glance-api-paste.ini
+# vi /etc/glance/glance-registry-paste.ini
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+auth_host = <controller-host>
+admin_tenant_name = service
+admin_user = glance
+admin_password = <glance_pass>
+
+# keystone service-create --name=glance --type=image --description="Glance Image Service"
+# keystone endpoint-create \
+  --service-id=<service-id> \
+  --publicurl=http://<controller-host>:9292 \
+  --internalurl=http://<controller-host>:9292 \
+  --adminurl=http://<controller-host>:9292
+
+# service glance-registry restart
+# service glance-api restart
+
+wget https://cloud-images.ubuntu.com/precise/current/precise-server-cloudimg-amd64-disk1.img
+
+# glance image-create --name=<name> --disk-format=qcow2 \
+  --container-format=bare --is-public=true < precise-server-cloudimg-amd64-disk1.img
+
+# glance image-list
+

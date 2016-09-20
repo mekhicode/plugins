@@ -1,0 +1,91 @@
+
+cd /tmp
+wget http://192.168.88.100/programming/operation/logstash/release/kibana-3.0.0milestone4.tar.gz
+tar xfz kibana-3.0.0milestone4.tar.gz
+sudo mv kibana-3.0.0milestone4 /opt
+sudo ln -s /opt/kibana-3.0.0milestone4 /var/www/kibana
+sudo chmod -R 777 /var/www/kibana
+
+sudo a2ensite default
+
+sudo vi /etc/apache2/sites-available/default
+<Directory /var/www/kibana>
+  Options Indexes FollowSymLinks MultiViews
+  AllowOverride None
+  Order allow,deny
+  allow from all
+</Directory>
+
+sudo service apache2 restart
+
+cd /var/www/kibana/app/dashboards
+cp logstash.json flume.json
+
+vi flume.json
+"index": {
+  "pattern": "[flume-]YYYY-MM-DD",
+}
+
+http://<apache-host>/kibana/index.html#/dashboard/file/flume.json
+
+
+>sudo vim /etc/nginx/sites-available/logstash
+server {
+  server_name loghost.dev.kkche.cn;
+  listen 80;
+  autoindex on;
+  index index.html index.htm index.php;
+  access_log /var/log/nginx/loghost.log;
+  error_log /var/log/nginx/loghost-err.log;
+  root /opt/logstash/vendor/kibana;
+
+location / {
+  index  index.html  index.htm;
+}
+
+location ~ ^/_aliases$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+}
+
+location ~ ^/.*/_aliases$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+}
+
+location ~ ^/_nodes$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+}
+
+location ~ ^/.*/_search$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+}
+
+location ~ ^/.*/_mapping$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+}
+
+# Password protected end points
+location ~ ^/kibana-int/dashboard/.*$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+#  limit_except GET {
+#    proxy_pass http://127.0.0.1:9200;
+#    auth_basic "Restricted";
+#    auth_basic_user_file /etc/nginx/conf.d/kibana.myhost.org.htpasswd;
+#   }
+}
+
+location ~ ^/kibana-int/temp.*$ {
+  proxy_pass http://127.0.0.1:9200;
+  proxy_read_timeout 90;
+#  limit_except GET {
+#    proxy_pass http://127.0.0.1:9200;
+#    auth_basic "Restricted";
+#    auth_basic_user_file /etc/nginx/conf.d/kibana.myhost.org.htpasswd;
+#  }
+}
+}

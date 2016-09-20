@@ -1,0 +1,31 @@
+
+sudo apt-get install ganglia-monitor
+
+sudo apt-get install gmetad ganglia-webfrontend
+
+sudo vi /etc/ganglia/gmetad.conf
+data_source "cdh4-yarn" cdh4-yarn-host-1.quanqiuwang.com cdh4-yarn-host-2.quanqiuwang.com cdh4-yarn-host-3.quanqiuwang.com cdh4-yarn-host-4.quanqiuwang.com
+
+sudo vi /etc/ganglia/gmond.conf
+cluster {
+    name = "cdh4-yarn"
+}
+udp_send_channel {
+    host = cdh4-yarn-host-1.quanqiuwang.com
+}
+
+sudo vi /etc/hadoop/conf.empty/hadoop-metrics.properties
+<context>.class=org.apache.hadoop.metrics.ganglia.GangliaContext31
+<context>.period=10
+<context>.servers=cdh4-yarn-host-1.quanqiuwang.com:8649
+
+sudo ln -s /etc/ganglia-webfrontend/apache.conf /etc/apache2/sites-enabled/ganglia
+
+sudo service gmetad restart
+sudo service ganglia-monitor restart
+sudo service apache2 restart
+
+http://cdh4-yarn-host-1.quanqiuwang.com/ganglia/
+
+ls /var/lib/ganglia/rrds/
+

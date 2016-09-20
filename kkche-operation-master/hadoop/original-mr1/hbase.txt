@@ -1,0 +1,85 @@
+
+tar xfz hbase-0.94.7.tar.gz
+sudo mv hbase-0.94.7 /opt
+sudo chown -R `whoami`:root /opt/hbase-0.94.7
+
+sudo vi /etc/hosts
+#127.0.1.1	<hostname>
+<ip> <hostname>
+
+sudo vi /opt/hbase-0.94.7/conf/hbase-site.xml
+<configuration>
+  <property>
+    <name>hbase.rootdir</name>
+    <value>hdfs://<hostname>:9000/hbase</value>
+  </property>
+  <property>
+    <name>hbase.cluster.distributed</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>hbase.zookeeper.quorum</name>
+    <value><hostname></value>
+  </property>
+  <property>
+    <name>hbase.rest.port</name>
+    <value>60050</value>
+  </property>
+</configuration>
+
+sudo vi /opt/hbase-0.94.7/conf/hdfs-site.xml  
+<configuration>
+  <property>
+    <name>dfs.support.append</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>dfs.datanode.max.xcievers</name>
+    <value>4096</value>
+  </property>
+</configuration>
+
+echo $JAVA_HOME
+sudo vi /opt/hbase-0.94.7/conf/hbase-env.sh
+export JAVA_HOME=<JAVA_HOME>
+export HBASE_MANAGES_ZK=false
+
+sudo vi /opt/hbase-0.94.7/conf/regionservers
+<hostname>
+
+sudo vi /etc/security/limits.conf
+<username>  -  nofile  32768
+<username> soft/hard nproc 32000
+
+sudo vi /etc/profile.d/hbase.sh
+export HBASE_HOME=/opt/hbase-0.94.7
+export PATH=$HBASE_HOME/bin:$PATH
+
+$HADOOP_HOME/bin/hadoop fs -mkdir /hbase
+
+sudo $ZOOKEEPER_HOME/bin/zkServer.sh start
+
+$HBASE_HOME/bin/start-hbase.sh
+
+http://<hostname>:60010/
+
+$HBASE_HOME/bin/hbase shell
+> status 'detailed'
+> create 't1', 'cf1'
+> list
+> put 't1', 'row1', 'cf1:cq1', 'value1'
+> put 't1', 'row2', 'cf1:cq2', 'value2'
+> scan 't1', {STARTROW => 'row1', STOPROW => 'row2', LIMIT => 10}
+> count 't1'
+> get 't1', 'row1'
+> truncate 't1'
+> disable 't1'
+> alter 't1', 'cf2'
+> enable 't1'
+> drop 't1'
+
+ps aux | grep hbase | awk '{print $2}' | xargs sudo kill -9
+
+http://stackoverflow.com/questions/11068418/get-filtered-rows-in-hbase
+https://blogs.apache.org/hbase/entry/coprocessor_introduction
+

@@ -1,0 +1,13 @@
+
+sudo vi /usr/share/applications/arduino-1.0.4.desktop
+[Desktop Entry]
+Type=Application
+Name=Arduino IDE
+GenericName=Create physical computing projects
+Exec=/home/user/software/arduino-1.0.4/arduino
+Icon=/home/user/software/arduino-1.0.4/arduino
+Terminal=false
+Categories=Development;Engineering;Electronics;
+MimeType=text/x-arduino
+
+gem install rad dino arduino arduino_firmata

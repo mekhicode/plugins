@@ -1,0 +1,26 @@
+
+sudo apt-get install postgresql postgresql-client libpq-dev \
+postgresql-contrib postgresql-server-dev-all pgadmin3
+
+sudo -u postgres -i
+$ createuser <username> -s -p
+$ createuser -sdr <username>
+$ createdb -e utf8 -o <username> <db_name>
+$ psql -d <db_name> -c "create extension btree_gist;"
+
+sudo -u postgres psql
+
+postgres=# \password <username>
+postgres=# select * from <table_name>;
+postgres=# \q
+
+sudo -u postgres psql -d template1
+
+template1=# create user <username> createdb;
+template1=# create database <db_name> owner <username>;
+template1=# \q
+
+psql -h localhost <db_name> <username>
+
+sudo vi /etc/postgresql/9.3/main/pg_hba.conf
+

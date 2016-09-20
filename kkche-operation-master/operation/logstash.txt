@@ -1,0 +1,158 @@
+
+wget -q -O - http://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
+
+echo 'deb http://packages.elasticsearch.org/logstash/1.4/debian stable main' | \
+sudo tee /etc/apt/sources.list.d/logstash.list
+
+sudo apt-get update && sudo apt-get install logstash
+
+# logstash
+sudo -u logstash /opt/logstash/bin/logstash -e \
+ 'input {  stdin { } output { elasticsearch { host => localhost } }'
+
+sudo -u logstash /opt/logstash/bin/logstash -e \
+  'input { file { path => "var/log/*.log" start_position => beginning }}
+   filter { grok { match => { "message" => "%{COMBINEDAPACHELOG}" } add_tag => [ "Grokked" ]  }}
+   output { elasticsearch {} stdout{} }'
+
+sudo -u logstash /opt/logstash/bin/logstash -e \
+  'input { file { path => "/home/ubuntu/workspace/python/kanche-share/log/share_log.txt" start_position => beginning }}
+   filter {
+  grok {
+    pattern => "%{TIMESTAMP_ISO8601:logdate}\s\-\s%{GREEDYDATA:thread}\s\-\s%{LOGLEVEL:loglevel}\s\-\s%{GREEDYDATA:jsonmsg}"
+    add_tag => [ "Grokked" ]
+       }
+  json{
+    source => "jsonmsg"
+    add_tag => [ "isJson" ]
+      }
+  date {
+    match => [ "logdate", "YYYY-MM-dd HH:mm:ss,SSS"]
+    add_tag => [ "dateMatched" ]
+       }
+    }
+   output { elasticsearch_http { host => "localhost"} stdout{} }'
+
+# service
+sudo service logstash start
+
+http://localhost:9200/_search?pretty=1&q=*
+http://localhost:9292/
+
+# etc/logstash/conf.d/*.conf
+sudo vi etc/logstash/conf.d/apache-elasticsearch.conf
+input {
+  file {
+    type => "apache"
+    path => [ "/tmp/apache_log.2" ]
+  }
+}
+filter {
+  grok {
+    type => "apache"
+    pattern => "%{COMBINEDAPACHELOG}"
+  }
+  date {
+    type => "apache"
+    match => [ "timestamp", "dd/MMM/yyyy:HH:mm:ss Z" ]
+  }
+}
+output {
+  elasticsearch {
+    embedded => true
+  }
+}
+
+sudo vi etc/logstash/conf.d/shipper.conf
+input {
+  stdin {
+    type => "example"
+  }
+}
+output {
+  stdout {
+    codec => rubydebug
+  }
+  redis {
+    host => "<redis-host>"
+    data_type => "list"
+    key => "logstash"
+  }
+}
+
+sudo vi etc/logstash/conf.d/indexer.conf
+input {
+  redis {
+    host => "<redis-host>"
+    data_type => "list"
+    key => "logstash"
+    codec => json
+  }
+}
+output {
+  stdout {
+    debug => true
+    debug_format => "json"
+  }
+  elasticsearch {
+    host => "<es-host>"
+  }
+}
+
+sudo vi etc/logstash/conf.d/apache-metrics.conf
+input {
+  file {
+    path => "/var/log/apache2/access.log"
+    type => "apache-access"
+  }
+}
+filter {
+  grok {
+    type => "apache-access"
+    pattern => "%{COMBINEDAPACHELOG}"
+  }
+}
+output {
+  statsd {
+    increment => "apache.response.%{response}"
+    count => [ "apache.bytes", "%{bytes}" ]
+  }
+}
+
+sudo vi etc/logstash/conf.d/rabbitmq.conf
+input {
+    rabbitmq {
+        user => "<username>"
+        password => "<password>"
+        host => "<hostname>"
+        queue => "<queue>"
+        #exchange => "<exchange>"
+        vhost => "<vhostname>"
+      }
+    }
+filter {
+  grok {
+    pattern => "\[%{LOGLEVEL:play_loglevel}\]\[%{TIMESTAMP_ISO8601:logdate}\] from \[%{GREEDYDATA:logger}\] \[%{GREEDYDATA:play_msg}\]"
+    add_tag => [ "Grokked" ]
+       }
+  json{
+    source => "play_msg"
+    add_tag => [ "isJson" ]
+      }
+  date {
+    match => [ "logdate", "YYYY-MM-dd HH:mm:ss,SSS"]
+    add_tag => [ "dateMatched" ]
+       }
+    }
+output {
+  file {
+    path => "/home/ubuntu/log/logstash/%{type}/%{+YYYY-MM-dd}/%{type}.txt"
+    }
+
+  elasticsearch {
+ 		host => localhost
+	}
+}
+
+# nginx
+https://raw.githubusercontent.com/elasticsearch/kibana/master/sample/nginx.conf

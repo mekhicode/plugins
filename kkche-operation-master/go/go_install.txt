@@ -1,0 +1,16 @@
+
+sudo apt-get install python-software-properties git mercurial bzr
+
+cd /tmp
+wget https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz
+tar xzf go1.2.linux-amd64.tar.gz
+sudo mv go /opt/go-1.2
+sudo chown -R root:root /opt/go-1.2
+
+sudo vi /etc/profile.d/go.sh
+export GOROOT=/opt/go-1.2
+export PATH=$GOROOT/bin:$PATH
+export GOPATH=/home/<user>/workspace/go
+
+source /etc/profile.d/go.sh
+

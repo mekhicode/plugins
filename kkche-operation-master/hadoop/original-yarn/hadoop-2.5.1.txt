@@ -1,0 +1,127 @@
+
+tar xfz hadoop-2.5.1.tar.gz
+mv hadoop-2.5.1 ~/software
+file ~/software/hadoop-2.5.1/lib/native*
+
+#config hadoop
+
+vi ~/.bash_profile
+export HADOOP_HOME=$HOME/software/hadoop-2.5.1
+export PATH=$HADOOP_HOME/bin:$PATH
+export PATH=$HADOOP_HOME/sbin:$PATH
+
+vi $HADOOP_HOME/etc/hadoop/core-site.xml
+<configuration>
+	<property>
+		<name>fs.defaultFS</name>
+		<value>hdfs://<host>:8020</value>
+	</property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/hdfs-site.xml
+<configuration>
+	<property>
+		<name>dfs.namenode.name.dir</name>
+		<value>file:///data/hadoop/dfs/nn</value>
+	</property>
+	<property>
+		<name>dfs.datanode.data.dir</name>
+		<value>file:///data/hadoop/dfs/dn</value>
+	</property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/yarn-site.xml
+<configuration>
+	<property>
+		<name>yarn.resourcemanager.scheduler.class</name>
+		<value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.resource.memory-mb</name>
+		<value>10240</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.local-dirs</name>
+		<value>file:///data/hadoop/yarn/local</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.log-dirs</name>
+		<value>file:///data/hadoop/yarn/log</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.aux-services</name>
+		<value>mapreduce_shuffle</value>
+	</property>
+</configuration>
+
+cp $HADOOP_HOME/etc/hadoop/mapred-site.xml.template $HADOOP_HOME/etc/hadoop/mapred-site.xml
+
+vi $HADOOP_HOME/etc/hadoop/mapred-site.xml
+<configuration>
+	<property>
+		<name>mapreduce.framework.name</name>
+		<value>yarn</value>
+	</property>
+	<property>
+		<name>mapreduce.cluster.temp.dir</name>
+		<value>file:///data/hadoop/mr/tmp</value>
+		<final>true</final>
+	</property>
+	<property>
+		<name>mapreduce.cluster.local.dir</name>
+		<value>file:///data/hadoop/mr/local</value>
+		<final>true</final>
+	</property>
+	<property>
+    <name>yarn.scheduler.maximum-allocation-mb</name>
+    <value>20480</value>
+  </property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+export HADOOP_OPTS="-Djava.library.path=$HADOOP_PREFIX/lib"
+
+vi $HADOOP_HOME/etc/hadoop/capacity-scheduler.xml
+	<property>
+	    <name>yarn.scheduler.capacity.root.queues</name>
+	    <value>default,spark</value>
+	</property>
+  <property>
+    <name>yarn.scheduler.capacity.root.default.capacity</name>
+    <value>50</value>
+    <description>Default queue target capacity.</description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.spark.capacity</name>
+    <value>50</value>
+    <description>Default queue target capacity.</description>
+  </property>
+
+vi $HADOOP_HOME/etc/hadoop/slaves
+<host>
+
+sudo mkdir -p /data/hadoop/dfs/nn
+sudo chown -R `whoami`:root /data/hadoop/dfs/nn
+sudo mkdir -p /data/hadoop/dfs/dn
+sudo chown -R `whoami`:root /data/hadoop/dfs/dn
+sudo mkdir -p /data/hadoop/yarn/local
+sudo chown -R `whoami`:root /data/hadoop/yarn/local
+sudo mkdir -p /data/hadoop/yarn/log
+sudo chown -R `whoami`:root /data/hadoop/yarn/log
+sudo mkdir -p /data/hadoop/mr/tmp
+sudo chown -R `whoami`:root /data/hadoop/mr/tmp
+sudo mkdir -p /data/hadoop/mr/local
+sudo chown -R `whoami`:root /data/hadoop/mr/local
+
+$HADOOP_HOME/bin/hdfs namenode -format
+$HADOOP_HOME/sbin/start-dfs.sh
+$HADOOP_HOME/sbin/start-yarn.sh
+jps
+
+http://<host>:50070/
+http://<host>:8088/
+
+#<property>
+#		<name>yarn.resourcemanager.hostname</name>
+#		<value><hostname></value>
+#	</property>

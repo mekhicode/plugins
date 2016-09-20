@@ -1,0 +1,20 @@
+
+#hadoop
+sudo vi /etc/hadoop/conf/mapred-site.xml
+<property>
+  <name>mapred.compress.map.output</name>  
+  <value>true</value>
+</property>
+<property>
+  <name>mapred.map.output.compression.codec</name>  
+  <value>org.apache.hadoop.io.compress.SnappyCodec</value>
+</property>
+
+#hive
+SET hive.exec.compress.output=true;
+SET mapred.output.compression.codec=org.apache.hadoop.io.compress.SnappyCodec;
+SET mapred.output.compression.type=BLOCK;
+
+#sqoop
+--compression-codec org.apache.hadoop.io.compress.SnappyCodec
+

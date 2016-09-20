@@ -1,0 +1,126 @@
+
+#on the controller node
+# apt-get install neutron-server
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+auth_strategy = keystone
+fake_rabbit = False
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini 
+[ovs]
+tenant_network_type = vlan
+network_vlan_ranges = physnet1:100:2999
+
+# vi /etc/neutron/api-paste.ini
+[filter:authtoken]
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+
+# service neutron-server restart
+
+#on the network node
+# apt-get install neutron-plugin-openvswitch-agent \
+neutron-dhcp-agent neutron-l3-agent
+
+# service openvswitch-switch start
+
+# ovs-vsctl add-br br-int
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+rabbit_host = <controller_host>
+rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[ovs]
+tenant_network_type=vlan
+network_vlan_ranges = physnet1:1:4094
+bridge_mappings = physnet1:br-eth1
+
+# ovs-vsctl add-br br-eth1
+# ovs-vsctl add-port br-eth1 eth1
+
+# ovs-vsctl add-br br-ex
+# ovs-vsctl add-port br-ex eth2
+
+# vi /etc/neutron/l3_agent.ini
+[DEFAULT]
+auth_url = http://<controller_host>:35357/v2.0
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+metadata_ip = <controller_host>
+use_namespaces = True
+
+# vi /etc/neutron/api-paste.ini
+auth_host=<controller_host>
+admin_user=neutron
+admin_tenant_name=service
+admin_password=<neutron_pass>
+
+# vi /etc/neutron/dhcp_agent.ini
+use_namespaces = True
+
+# service neutron-plugin-openvswitch-agent start
+# service neutron-dhcp-agent restart
+# service neutron-l3-agent restart
+
+#on the compute node
+# apt-get install openvswitch-switch neutron-plugin-openvswitch-agent
+
+# service openvswitch-switch start
+
+# ovs-vsctl add-br br-int
+
+# ovs-vsctl add-br br-eth1
+# ovs-vsctl add-port br-eth1 eth1
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+rabbit_host = <controller_host>
+rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[ovs]
+tenant_network_type=vlan
+network_vlan_ranges = physnet1:1:4094
+bridge_mappings = physnet1:br-eth1
+
+# service neutron-plugin-openvswitch-agent restart
+
+#logical configuration on the network node
+# neutron net-create --tenant-id <tenant-id> net1
+
+# neutron subnet-create --tenant-id <tenant-id> net1 10.5.5.0/24
+
+# neutron router-create router1
+
+# neutron router-interface-add <router-id> <subnet-id>
+
+# neutron net-create ext_net --router:external=True
+
+# neutron subnet-create ext_net \
+--allocation-pool start=7.7.7.130,end=7.7.7.150 \
+--gateway 7.7.7.1 7.7.7.0/24 --disable-dhcp
+
+# neutron router-gateway-set <router-id> <external-network-id>
+
+# nova list
+# neutron port-list -- --device_id <instance-id>
+
+# neutron floatingip-create ext_net
+# neutron floatingip-associate <floating-id> <port-id>
+# neutron floatingip-show <floating-id>
+

@@ -1,0 +1,80 @@
+
+#conf/nutch-site.xml
+<property>
+ <name>http.agent.name</name>
+ <value>quanqiuwang</value>
+</property>
+<property>
+  <name>http.robots.agents</name>
+  <value>quanqiuwang,*</value>
+</property>
+<property>
+  <name>file.content.limit</name> 
+  <value>-1</value>
+</property>
+<property>
+  <name>http.content.limit</name> 
+  <value>-1</value>
+</property>
+<property>
+  <name>plugin.includes</name>
+  <value>protocol-http|urlfilter-regex|parse-(html|tika|zip|js|swf|feed)|index-(basic|more)|scoring-opic|urlnormalizer-(pass|regex|basic)</value>
+</property>
+
+ant runtime
+
+export JAVA_HOME=/usr/lib/jvm/jdk1.6.0_33
+export NUTCH_HOME=/opt/nutch-1.6
+export NUTCH_DEPLOY_HOME=/opt/nutch-1.6/runtime/deploy
+export NUTCH_LOCAL_HOME=/opt/nutch-1.6/runtime/local
+export SOLR_HOME=/opt/solr-4.0.0
+export HADOOP_HOME=/opt/hadoop-1.1.1
+export PATH=$HADOOP_HOME/bin:$PATH
+
+wget http://nlp.solutions.asia/wp-content/uploads/2012/08/schema.xml \
+-O $SOLR_HOME/example/solr/collection1/conf/schema.xml
+
+cd $NUTCH_LOCAL_HOME
+mkdir -p crawl urls
+echo "http://www.163.com/" >> urls/seed.txt
+
+cp $NUTCH_HOME/conf/nutch-site.xml $HADOOP_HOME/conf
+
+$HADOOP_HOME/bin/hadoop fs -mkdir crawl
+$HADOOP_HOME/bin/hadoop fs -put urls urls
+
+bin/nutch crawl urls -dir crawl -depth 3 -topN 5 \
+-solr http://user-desktop-1.quanqiuwang.com:8983/solr/
+
+bin/nutch inject crawl/crawldb urls
+
+bin/nutch generate crawl/crawldb crawl/segments -topN 1000
+
+segment=`ls -d crawl/segments/* | tail -1`
+
+bin/nutch fetch $segment
+
+bin/nutch parse $segment
+
+bin/nutch updatedb crawl/crawldb $segment
+
+bin/nutch invertlinks crawl/linkdb -dir crawl/segments
+
+bin/nutch solrindex http://user-desktop-1.quanqiuwang.com:8983/solr/ \
+crawl/crawldb -linkdb crawl/linkdb crawl/segments/*
+
+bin/nutch org.apache.nutch.scoring.webgraph.WebGraph -segmentDir crawl/segments -webgraphdb crawl/webgraphdb
+
+bin/nutch org.apache.nutch.scoring.webgraph.Loops -webgraphdb crawl/webgraphdb
+
+bin/nutch org.apache.nutch.scoring.webgraph.LinkRank -webgraphdb crawl/webgraphdb
+
+bin/nutch org.apache.nutch.scoring.webgraph.ScoreUpdater -crawldb crawl/crawldb -webgraphdb crawl/webgraphdb
+
+bin/nutch org.apache.nutch.scoring.webgraph.NodeDumper -scores -topn 1000 \
+-webgraphdb crawl/webgraphdb/ -output crawl/webgraphdb/dump/scores
+
+more crawl/webgraphdb/dump/scores/part-00000
+
+bin/nutch readdb crawl/crawldb/ -stats
+

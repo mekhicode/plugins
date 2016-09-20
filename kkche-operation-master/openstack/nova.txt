@@ -1,0 +1,174 @@
+
+#compute service
+
+#on the controller node
+# apt-get install nova-novncproxy novnc nova-api \
+  nova-ajax-console-proxy nova-cert nova-conductor \
+  nova-consoleauth nova-doc nova-scheduler \
+  python-novaclient
+
+# vi /etc/nova/nova.conf
+[DEFAULT]
+rpc_backend = nova.rpc.impl_kombu
+rabbit_host = <controller-host>
+rabbit_password = <rabbit_pass>
+my_ip=<ip-address>
+vncserver_listen=<ip-address>
+vncserver_proxyclient_address=<ip-address>
+auth_strategy=keystone
+[database]
+connection = mysql://nova:<nova_dbpass>@<controller-host>/nova
+[keystone_authtoken]
+auth_host = <controller-host>
+auth_port = 35357
+auth_protocol = http
+admin_tenant_name = service
+admin_user = nova
+admin_password = <nova_pass>
+
+# rm /var/lib/nova/nova.sqlite
+
+mysql -u root -p
+> create database nova;
+> grant all privileges on nova.* to 'nova'@'localhost' identified by '<nova_dbpass>';
+> grant all privileges on nova.* to 'nova'@'%' identified by '<nova_dbpass>';
+> flush privileges;
+
+# nova-manage db sync
+
+# keystone user-create --name=nova --pass=<nova_pass> --email=nova@example.com
+# keystone user-role-add --user=nova --tenant=service --role=admin
+
+# vi /etc/nova/api-paste.ini
+[filter:authtoken]
+paste.filter_factory=keystoneclient.middleware.auth_token:filter_factory
+auth_host=<controller-host>
+auth_port=35357
+auth_protocol=http
+auth_uri=http://<controller-host>:5000/v2.0
+admin_tenant_name=service
+admin_user=nova
+admin_password=<nova_pass>
+
+# keystone service-create --name=nova --type=compute --description="Nova Compute service"
+# keystone endpoint-create \
+  --service-id=<service-id> \
+  --publicurl=http://<controller-host>:8774/v2/%\(tenant_id\)s \
+  --internalurl=http://<controller-host>:8774/v2/%\(tenant_id\)s \
+  --adminurl=http://<controller-host>:8774/v2/%\(tenant_id\)s
+
+# for x in api cert consoleauth scheduler conductor novncproxy; do service nova-$x restart ; done
+
+# nova image-list
+
+#on the compute node
+# apt-get install nova-compute-kvm python-guestfs
+#supermin appliance: yes
+
+# dpkg-statoverride  --update --add root root 0644 /boot/vmlinuz-$(uname -r)
+
+# vi /etc/kernel/postinst.d/statoverride
+#!/bin/sh
+version="$1"
+[ -z "${version}" ] && exit 0
+dpkg-statoverride --update --add root root 0644 /boot/vmlinuz-${version}
+
+# chmod +x /etc/kernel/postinst.d/statoverride
+
+# chmod 0644 /boot/vmlinuz*
+
+# vi /etc/nova/nova.conf
+[DEFAULT]
+rpc_backend = nova.rpc.impl_kombu
+rabbit_host = <controller-host>
+rabbit_password = <rabbit_pass>
+my_ip=<ip-address>
+vnc_enabled=True
+vncserver_listen=0.0.0.0
+vncserver_proxyclient_address=<ip-address>
+novncproxy_base_url=http://<controller-host>:6080/vnc_auto.html
+auth_strategy=keystone
+glance_host=<controller-host>
+[database]
+connection = mysql://nova:<nova_dbpass>@<controller-host>/nova
+
+# vi /etc/nova/api-paste.ini
+[filter:authtoken]
+paste.filter_factory=keystoneclient.middleware.auth_token:filter_factory
+auth_host=<controller-host>
+auth_port=35357
+auth_protocol=http
+admin_tenant_name=service
+admin_user=nova
+admin_password=<nova_pass>
+
+# service nova-compute restart
+
+# rm /var/lib/nova/nova.sqlite
+
+# apt-get install nova-network
+
+# vi /etc/nova/nova.conf
+[DEFAULT]
+network_manager=nova.network.manager.FlatDHCPManager
+firewall_driver=nova.virt.libvirt.firewall.IptablesFirewallDriver
+network_size=254
+allow_same_net_traffic=False
+multi_host=True
+send_arp_for_ha=True
+share_dhcp_address=True
+force_dhcp_release=True
+flat_network_bridge=br100
+flat_interface=eth1
+public_interface=eth1
+
+# service nova-network restart
+
+#on the controller node
+# nova network-create vmnet \
+  --fixed-range-v4=10.0.0.0/24 \
+  --bridge-interface=br100 --multi-host=T
+
+# nova network-list
+
+#on the client node
+$ sudo apt-get install python-novaclient
+
+$ sudo vi /etc/profile.d/openstack.sh
+export OS_SERVICE_TOKEN=<service-token>
+export OS_SERVICE_ENDPOINT=http://<controller-host>:35357/v2.0
+export OS_AUTH_URL=http://<controller-host>:35357/v2.0
+export OS_TENANT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=<admin_pass>
+
+$ source /etc/profile.d/openstack.sh
+
+$ ssh-keygen
+$ nova keypair-add --pub_key ~/.ssh/id_rsa.pub <key-name>
+$ nova keypair-list
+$ nova flavor-list
+$ nova image-list
+
+# nova secgroup-add-rule default tcp 22 22 0.0.0.0/0
+# nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
+
+$ nova boot --flavor <flavor-id> --key_name <key-name> --image <image-id> <instance-name>
+$ nova start <instance-id>
+$ nova stop <instance-id>
+$ nova list
+$ nova show <instance-id>
+
+#on the controller node
+vi /var/log/nova/nova-scheduler.log
+
+# nova-manage network list
+
+$ ssh ubuntu@<instance-ip-address>
+
+$ sudo iptables -t nat -L -v | grep -n3 169.254.169.254
+
+#'http://169.254.169.254/2009-04-04/meta-data/instance-id' failed [0/120s]: url error [[Errno 111] Connection refused]
+
+#(OperationalError) unable to open database file None None
+

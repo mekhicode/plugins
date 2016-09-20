@@ -1,0 +1,104 @@
+
+sudo apt-get install oozie oozie-client
+
+sudo apt-get install postgresql postgresql-client pgadmin3 postgresql-contrib postgresql-server-dev-9.1
+
+sudo -u postgres psql
+ 
+postgres=# CREATE ROLE oozie LOGIN ENCRYPTED PASSWORD 'oozie'
+ NOSUPERUSER INHERIT CREATEDB NOCREATEROLE;
+ 
+postgres=# CREATE DATABASE "oozie" WITH OWNER = oozie
+ ENCODING = 'UTF8'
+ TABLESPACE = pg_default
+ LC_COLLATE = 'en_US.UTF-8'
+ LC_CTYPE = 'en_US.UTF-8'
+ CONNECTION LIMIT = -1;
+ 
+postgres=# \q
+
+psql -h localhost oozie oozie
+
+sudo vi /etc/oozie/conf.dist/oozie-site.xml
+    <property>
+        <name>oozie.service.JPAService.jdbc.driver</name>
+        <value>org.postgresql.Driver</value>
+    </property>
+    <property>
+        <name>oozie.service.JPAService.jdbc.url</name>
+        <value>jdbc:postgresql://localhost:5432/oozie</value>
+    </property>
+    <property>
+        <name>oozie.service.JPAService.jdbc.username</name>
+        <value>oozie</value>
+    </property>
+    <property>
+        <name>oozie.service.JPAService.jdbc.password</name>
+        <value>oozie</value>
+    </property>
+
+mysql -u root -p
+mysql> create database oozie;
+mysql> grant all privileges on oozie.* to 'oozie'@'cdh4-yarn-host-1.quanqiuwang.com' identified by 'oozie'; 
+mysql> exit
+
+sudo vi /etc/oozie/conf.dist/oozie-site.xml
+    <property>
+        <name>oozie.service.JPAService.jdbc.driver</name>
+        <value>com.mysql.jdbc.Driver</value>
+    </property>
+    <property>
+        <name>oozie.service.JPAService.jdbc.url</name>
+        <value>jdbc:mysql://cdh4-yarn-host-1.quanqiuwang.com:3306/oozie</value>
+    </property>
+    <property>
+        <name>oozie.service.JPAService.jdbc.username</name>
+        <value>oozie</value>
+    </property>
+    <property>
+        <name>oozie.service.JPAService.jdbc.password</name>
+        <value>oozie</value>
+    </property>
+
+sudo apt-get install mysql-client
+dpkg -L libmysql-java
+sudo cp /usr/share/java/mysql-connector-java-5.1.16.jar /var/lib/oozie/
+
+sudo -u oozie /usr/lib/oozie/bin/ooziedb.sh create -run
+
+sudo usermod -a -G hadoop oozie
+
+mkdir /tmp/ooziesharelib && cd /tmp/ooziesharelib
+wget http://dev.sencha.com/deploy/ext-2.2.zip
+unzip ext-2.2.zip
+sudo cp -r ext-2.2 /var/lib/oozie
+sudo tar xzf /usr/lib/oozie/oozie-sharelib-yarn.tar.gz
+sudo -u oozie hadoop fs -mkdir /user/oozie/share
+sudo -u oozie hadoop fs -chown oozie /user/oozie/share
+sudo -u oozie hadoop fs -put share /user/oozie
+
+sudo vi /etc/hadoop/conf.empty/core-site.xml
+<property>
+  <name>hadoop.proxyuser.oozie.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.oozie.groups</name>
+  <value>*</value>
+</property>
+
+sudo service oozie start
+oozie admin -oozie http://cdh4-yarn-host-1.quanqiuwang.com:11000/oozie -status
+
+cp /usr/share/doc/oozie/oozie-examples.tar.gz downloads/
+cd downloads/
+tar xzf oozie-examples.tar.gz
+
+vi examples/apps/map-reduce/job.properties
+mapred.job.tracker
+yarn.resourcemanager.address
+
+hadoop fs -put examples examples
+oozie job -oozie http://cdh4-yarn-host-1.quanqiuwang.com:11000/oozie -config examples/apps/map-reduce/job.properties -run
+oozie job -oozie http://cdh4-yarn-host-1.quanqiuwang.com:11000/oozie -info 0000009-120925145709725-oozie-oozi-W
+

@@ -1,0 +1,88 @@
+
+#build spark 1.0 by maven
+#install scala 2.10.4 first
+
+>tar xvzf spark-1.0.0.tgz
+>sh make-distribution.sh --hadoop 2.4.0 --with-yarn --with-hive
+# mvn clean package -Phadoop-2.4 -Phive -Pyarn -Dyarn.version=2.4.0 -Dhadoop.version=2.4.0 -DskipTests
+>cp -r dist $HOME/software/spark-1.0.0-hadoop-2.4.0
+
+#config spark
+>cd ~/software/spark-1.0.0-hadoop-2.4.0/conf
+>cp log4j.properties.template log4j.properties
+>cp spark-env.sh.template spark-env.sh
+>vim spark-env.sh
+HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+SPARK_EXECUTOR_INSTANCES=8
+SPARK_EXECUTOR_CORES=1
+SPARK_EXECUTOR_MEMORY=8G
+SPARK_DRIVER_MEMORY=10G
+>vim $HADOOP_HOME/etc/hadoop/yarn-site.xml
+  <property>
+    <name>yarn.nodemanager.resource.memory-mb</name>
+    <value>20480</value>
+  </property>
+
+>cp spark-defaults.conf.template spark-defaults.conf
+>vim spark-defaults.conf
+spark.master            yarn-clusters
+spark.eventLog.dir      hdfs://<namenode>:8020/<directory>
+spark.yarn.jar  hdfs://spark01.kanche.com:8020/user/ubuntu/spark/lib/spark-assembly-1.1.0-hadoop2.5.1.jar
+spark.driver.extraClassPath     /home/ubuntu/software/apache-hive-0.13.1-bin/lib/elasticsearch-hadoop-2.0.2.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/mongo-hadoop-core-1.3.0.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/elasticsearch-hadoop-hive-2.0.2.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/mongo-hadoop-hive-1.3.0.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/mongo-java-driver-2.12.4.jar:
+spark.executor.extraClassPath   /home/ubuntu/software/apache-hive-0.13.1-bin/lib/elasticsearch-hadoop-2.0.2.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/mongo-hadoop-core-1.3.0.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/elasticsearch-hadoop-hive-2.0.2.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/mongo-hadoop-hive-1.3.0.jar:/home/ubuntu/software/apache-hive-0.13.1-bin/lib/mongo-java-driver-2.12.4.jar:
+
+>vim $HOME/.bash_profile
+export SPARK_HOME=$HOME/software/spark-1.0.0-hadoop-2.4.0
+export PATH=$SPARK_HOME/bin:$PATH
+# export SPARK_JAR=$HOME/software/spark-1.0.0-hadoop-2.4.0/lib/spark-assembly-1.0.0-hadoop2.4.0.jar
+# export SPARK_JAR=hdfs://<namenode>:8020/user/$USER/spark/lib/spark-assembly-1.0.0-hadoop2.4.0.jar
+>source $HOME/.bash_profile
+
+>$HADOOP_HOME/bin/hadoop fs -ls -R /
+>$HADOOP_HOME/bin/hadoop fs -mkdir -p /user/$USER/spark
+# >$HADOOP_HOME/bin/hadoop fs -put $SPARK_HOME/lib/spark-assembly-1.0.0-hadoop2.4.0.jar /user/$USER/spark/lib
+
+#spark on yarn
+>spark-submit --class org.apache.spark.examples.SparkPi \
+    --master yarn-cluster \
+    --num-executors 2 \
+    --driver-memory 4g \
+    --executor-memory 2g \
+    --executor-cores 2  \
+    $HOME/software/spark-1.0.0-hadoop-2.4.0/lib/spark-examples-1.0.0-hadoop2.4.0.jar \
+    --arg 10
+
+>spark-shell
+http://<hostname>:4040
+
+
+# # # # # # # # # # # # # # #
+# spark 1.1.0 Hadoop 2.5.1  #
+# # # # # # # # # # # # # # #
+
+#build spark 1.1.0 by maven
+#install scala 2.10.4 first
+# hive 0.13.1
+
+sudo apt-get install build-essential
+sudo apt-get install libtool cmake zlib1g-dev libssl-dev protobuf-compiler
+
+>./make-distribution.sh --tgz -Pyarn -Phadoop-2.4 -Dhadoop.version=2.5.1 -Phive
+
+>vim bash_profile
+export SPARK_HOME=$HOME/software/spark-1.1.0-bin-2.5.1
+export PATH=$SPARK_HOME/bin:$PATH
+export SPARK_JAR=hdfs://spark01.kanche.com:8020/user/$USER/spark/lib/spark-assembly-1.1.0-hadoop2.5.1.jar
+
+cp $HIVE_CONF_DIR/hive-site.xml $SPARK_HOME/conf/hive-site.xml
+
+$SPARK_HOME/bin/spark-shell --master yarn-clusters
+
+$HIVE_HOME/bin/hive --service metastore
+spark-sql --master yarn-clusters
+
+$SPARK_HOME/sbin/start-thriftserver.sh
+netstat -ntulp | grep ':10000'
+$SPARK_HOME/bin/beeline
+>!connect jdbc:hive2://localhost:10000
+# enter the username on your machine and a blank password

@@ -1,0 +1,81 @@
+
+sudo apt-get install apache2
+echo "ServerName localhost" | sudo tee /etc/apache2/conf.d/fqdn
+sudo cp /etc/apache2/sites-available/default /etc/apache2/sites-available/mysite
+sudo vi /etc/apache2/sites-available/mysite
+sudo a2dissite default && sudo a2ensite mysite
+sudo vi /etc/apache2/ports.conf
+sudo service apache2 restart
+
+http://localhost:<port>/
+
+sudo apt-get install php5 php5-cli php-pear php5-dev php5-gd
+sudo a2enmod php5
+sudo service apache2 restart
+
+sudo vi /etc/php5/apache2/php.ini
+extension_dir= "/usr/lib/php5/20090626"
+
+sudo apache2ctl configtest
+sudo apache2ctl stop
+sudo apache2ctl start
+
+sudo apt-get install mysql-server libapache2-mod-auth-mysql php5-mysql
+
+sudo apt-get install phpmyadmin
+
+sudo vi /etc/apache2/apache2.conf
+Include /etc/phpmyadmin/apache.conf
+
+sudo service apache2 restart
+
+http://localhost/phpmyadmin/
+
+sudo apt-get install memcached php5-memcache
+sudo vi /etc/memcached.conf
+telnet 127.0.0.1 11211
+stats
+
+sudo apt-get install php5-mcrypt php5-xsl php5-xmlrpc
+sudo apt-get install curl php5-curl imagemagick php5-imagick
+sudo a2enmod ssl
+sudo a2enmod rewrite
+sudo a2enmod include
+
+pear list
+pear remote-list
+pear info <package_name>
+pear list-files <package_name>
+sudo pear channel-update pear.php.net
+sudo pear upgrade-all
+sudo pear upgrade PEAR
+sudo pear install -a <package_name>
+sudo pear uninstall <package_name>
+php -i | grep include_path
+
+sudo ln -s /home/user/workspace/test/ /var/www/test/
+sudo chown www-data:www-data /var/www/upload
+sudo chmod 777 /var/www/upload
+
+#wordpress
+cd ~/downloads
+wget http://wordpress.org/latest.tar.gz
+tar -xzvf latest.tar.gz
+sudo cp -r wordpress /var/www/
+
+mysql -u root -h 127.0.0.1 -p
+mysql> create database databasename;
+mysql> grant all privileges on databasename.*
+            to "wordpressusername"@"localhost"
+            identified by "password";
+mysql> flush privileges;
+mysql> exit
+cd /var/www/wordpress
+sudo mv wp-config-sample.php wp-config.php
+sudo vi wp-config.php
+define('DB_NAME', 'databasename');
+define('DB_USER', 'wordpressusername');
+define('DB_PASSWORD', 'password');
+
+http://localhost/wordpress/wp-admin/install.php
+

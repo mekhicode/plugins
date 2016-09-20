@@ -1,0 +1,173 @@
+
+#object storage service
+
+#on all nodes
+# apt-get install swift openssh-server rsync memcached \
+python-netifaces python-xattr python-memcache
+
+# mkdir -p /etc/swift
+# chown -R swift:swift /etc/swift/
+
+# vi /etc/swift/swift.conf
+[swift-hash]
+swift_hash_path_suffix = fLIbertYgibbitZ
+
+#storage nodes
+# apt-get install swift-account swift-container swift-object xfsprogs
+
+# fdisk /dev/sdb
+# mkfs.xfs /dev/sdb1 -f
+# echo "/dev/sdb1 /srv/node/sdb1 xfs noatime,nodiratime,nobarrier,logbufs=8 0 0" >> /etc/fstab
+# mkdir -p /srv/node/sdb1
+# mount /srv/node/sdb1
+# chown -R swift:swift /srv/node
+
+# vi /etc/rsyncd.conf
+uid = swift
+gid = swift
+log file = /var/log/rsyncd.log
+pid file = /var/run/rsyncd.pid
+address = <storage_local_net_ip>
+
+[account]
+max connections = 2
+path = /srv/node/
+read only = false
+lock file = /var/lock/account.lock
+
+[container]
+max connections = 2
+path = /srv/node/
+read only = false
+lock file = /var/lock/container.lock
+
+[object]
+max connections = 2
+path = /srv/node/
+read only = false
+lock file = /var/lock/object.lock
+
+# vi /etc/default/rsync
+RSYNC_ENABLE = true
+
+# service rsync start
+
+# mkdir -p /var/swift/recon
+# chown -R swift:swift /var/swift/recon
+
+#proxy node
+# apt-get install swift-proxy memcached python-keystoneclient python-swiftclient python-webob python-pip
+
+# cd /etc/swift
+# openssl req -new -x509 -nodes -out cert.crt -keyout cert.key
+
+# vi /etc/memcached.conf
+-l <proxy_local_net_ip>
+
+# service memcached restart
+
+# vi /etc/swift/proxy-server.conf
+[DEFAULT]
+bind_port = 8888
+user = swift
+
+[pipeline:main]
+pipeline = healthcheck cache authtoken keystoneauth proxy-server
+
+[app:proxy-server]
+use = egg:swift#proxy
+allow_account_management = true
+account_autocreate = true
+
+[filter:keystoneauth]
+use = egg:swift#keystoneauth
+operator_roles = Member,admin,swiftoperator
+
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+delay_auth_decision = true
+signing_dir = /home/swift/keystone-signing
+auth_protocol = http
+auth_host = <controller-host>
+auth_port = 35357
+admin_token = <admin_token>
+admin_tenant_name = service
+admin_user = swift
+admin_password = swift
+
+[filter:cache]
+use = egg:swift#memcache
+memcache_servers = <proxy_local_net_ip>:11211
+
+[filter:catch_errors]
+use = egg:swift#catch_errors
+
+[filter:healthcheck]
+use = egg:swift#healthcheck
+
+# mkdir -p /home/swift/keystone-signing
+# chown -R swift:swift /home/swift/keystone-signing
+
+# cd /etc/swift
+# swift-ring-builder account.builder create 18 3 1
+# swift-ring-builder container.builder create 18 3 1
+# swift-ring-builder object.builder create 18 3 1
+
+# swift-ring-builder account.builder add z<zone>-<storage_local_net_ip>:6002[R<storage_replication_net_ip>:6005]/<device> 100
+# swift-ring-builder container.builder add z<zone>-<storage_local_net_ip_1>:6001[R<storage_replication_net_ip>:6004]/<device> 100
+# swift-ring-builder object.builder add z<zone>-<storage_local_net_ip_1>:6000[R<storage_replication_net_ip>:6003]/<device> 100
+
+#example
+# swift-ring-builder account.builder add z1-192.168.88.141:6002/sdb1 100
+# swift-ring-builder container.builder add z1-192.168.88.141:6001/sdb1 100
+# swift-ring-builder object.builder add z1-192.168.88.141:6000/sdb1 100
+
+# swift-ring-builder account.builder
+# swift-ring-builder container.builder
+# swift-ring-builder object.builder
+
+# swift-ring-builder account.builder rebalance
+# swift-ring-builder container.builder rebalance
+# swift-ring-builder object.builder rebalance
+
+# service swift-proxy restart
+
+$ git clone https://github.com/openstack/swift.git
+$ cd swift
+$ sudo python setup.py install
+$ sudo swift-init proxy start
+
+#on each storage node
+# scp <user>@<proxy-node>:/etc/swift/account.ring.gz /etc/swift
+# scp <user>@<proxy-node>:/etc/swift/container.ring.gz /etc/swift
+# scp <user>@<proxy-node>:/etc/swift/object.ring.gz /etc/swift
+# chown -R swift:swift /etc/swift
+
+# for x in object object-replicator object-updater object-auditor \
+container container-replicator container-updater container-auditor \
+account account-replicator account-reaper account-auditor; \
+do service swift-$x restart ; done
+
+# service rsyslog restart
+# service memcached restart
+
+#on proxy node
+$ keystone user-create --name=swift --pass=swift --email=swift@example.com
+$ keystone user-role-add --user=swift --tenant=service --role=admin
+$ keystone service-create --name=swift --type=object-store --description="Object Storage Service"
+$ keystone endpoint-create \
+  --service_id=<service_id> \
+  --publicurl=http://<controller-host>:5000/v2.0 \
+  --internalurl=http://<controller-host>:5000/v2.0 \
+  --adminurl=http://<controller-host>:35357/v2.0
+
+$ export SWIFT_PROXY_CONF=/etc/swift/proxy-server.conf
+$ export OS_PASSWORD=$( grep admin_password ${SWIFT_PROXY_CONF} | awk '{ print $NF }' )
+
+$ swift -V 2.0 -A $OS_AUTH_URL -U service:swift -K swift stat
+$ swift -V 2.0 -A $OS_AUTH_URL -U service:swift -K $OS_PASSWORD upload myfiles test.txt
+$ swift -V 2.0 -A $OS_AUTH_URL -U service:swift -K swift upload myfiles test2.txt
+$ swift -V 2.0 -A $OS_AUTH_URL -U service:swift -K swift download myfiles
+
+curl -i 'http://<swift-proxy-host>:5000/v2.0/tokens' -X POST -H "Content-Type: application/json"  -d '{"auth": {"tenantName": "service", "passwordCredentials": {"username": "swift", "password": "swift"}}}'
+

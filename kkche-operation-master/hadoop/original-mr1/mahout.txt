@@ -1,0 +1,34 @@
+
+export JAVA_HOME=/usr/lib/jvm/jdk1.6.0_33
+export HADOOP_HOME=/opt/hadoop-1.1.1
+export MAHOUT_HOME=/opt/mahout-0.7
+
+wget http://archive.ics.uci.edu/ml/databases/synthetic_control/synthetic_control.data \
+-O /tmp/synthetic_control.data
+
+$HADOOP_HOME/bin/hadoop fs -mkdir testdata
+$HADOOP_HOME/bin/hadoop fs -put /tmp/synthetic_control.data testdata
+
+$MAHOUT_HOME/bin/mahout org.apache.mahout.clustering.syntheticcontrol.canopy.Job
+$MAHOUT_HOME/bin/mahout org.apache.mahout.clustering.syntheticcontrol.kmeans.Job
+$MAHOUT_HOME/bin/mahout org.apache.mahout.clustering.syntheticcontrol.fuzzykmeans.Job
+$MAHOUT_HOME/bin/mahout org.apache.mahout.clustering.syntheticcontrol.dirichlet.Job
+$MAHOUT_HOME/bin/mahout org.apache.mahout.clustering.syntheticcontrol.meanshift.Job
+
+$HADOOP_HOME/bin/hadoop fs -lsr output
+$HADOOP_HOME/bin/hadoop fs -get output $MAHOUT_HOME/examples
+
+cd $MAHOUT_HOME/examples
+mvn clean install
+mvn -q exec:java -Dexec.mainClass=org.apache.mahout.clustering.display.DisplayClustering
+
+$MAHOUT_HOME/bin/mahout clusterdump \
+--input output/clusters-0-final \
+--pointsDir output/clusteredPoints \
+--output $MAHOUT_HOME/examples/output/clusterdump.txt
+
+$MAHOUT_HOME/bin/mahout clusterdump \
+--input $MAHOUT_HOME/examples/output/clusters-0-final \
+--pointsDir $MAHOUT_HOME/examples/output/clusteredPoints/ \
+--output $MAHOUT_HOME/examples/output/clusterdump.txt
+

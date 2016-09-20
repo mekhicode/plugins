@@ -1,0 +1,76 @@
+
+########0.7########
+cd /tmp
+wget http://mirrors.tuna.tsinghua.edu.cn/apache/incubator/kafka/kafka-0.7.2-incubating/kafka-0.7.2-incubating-src.tgz
+tar xzf kafka-0.7.2-incubating-src.tgz
+sudo mv kafka-0.7.2-incubating-src /opt/kafka-0.7.2
+sudo chown -R `whoami`:root /opt/kafka-0.7.2
+cd /opt/kafka-0.7.2
+./sbt update
+./sbt package
+
+sudo vi /etc/profile.d/kafka.sh
+export KAFKA_HOME=/opt/kafka-0.7.2
+export PATH=$KAFKA_HOME/bin:$PATH
+
+sudo vi $KAFKA_HOME/config/server.properties
+zk.connect=<hostname>:2181
+
+sudo $ZOOKEEPER_HOME/bin/zkServer.sh start
+
+sudo $KAFKA_HOME/bin/kafka-server-start.sh $KAFKA_HOME/config/server.properties
+
+sudo $KAFKA_HOME/bin/kafka-console-producer.sh --zookeeper <hostname>:2181 --topic <topic_name>
+
+sudo $KAFKA_HOME/bin/kafka-console-consumer.sh --zookeeper <hostname>:2181 --topic <topic_name> --from-beginning
+
+########0.8########
+cd /tmp
+wget https://dist.apache.org/repos/dist/release/kafka/kafka-0.8.0-beta1-src.tgz
+tar xzf kafka-0.8.0-beta1-src.tgz
+cd kafka-0.8.0-beta1
+./sbt update
+./sbt package
+./sbt assembly-package-dependency
+
+cd /tmp
+wget https://dist.apache.org/repos/dist/release/kafka/kafka_2.8.0-0.8.0-beta1.tgz
+tar xzf kafka_2.8.0-0.8.0-beta1.tgz
+sudo mv kafka_2.8.0-0.8.0-beta1 /opt/kafka-0.8.0-beta1
+sudo chown -R `whoami`:root /opt/kafka-0.8.0-beta1
+cd /opt/kafka-0.8.0-beta1
+
+sudo vi /etc/profile.d/kafka.sh
+export KAFKA_HOME=/opt/kafka-0.8.0-beta1
+export PATH=$KAFKA_HOME/bin:$PATH
+
+sudo vi $KAFKA_HOME/config/server.properties
+zk.connect=<hostname>:2181
+
+sudo $ZOOKEEPER_HOME/bin/zkServer.sh start
+
+sudo $KAFKA_HOME/bin/kafka-server-start.sh $KAFKA_HOME/config/server.properties &
+
+sudo $KAFKA_HOME/bin/kafka-create-topic.sh --zookeeper <hostname>:2181 --replica 1 --partition 1 --topic test
+
+sudo $KAFKA_HOME/bin/kafka-list-topic.sh --zookeeper <hostname>:2181
+
+sudo $KAFKA_HOME/bin/kafka-console-producer.sh --broker-list <hostname>:9092 --topic test 
+
+sudo $KAFKA_HOME/bin/kafka-console-consumer.sh --zookeeper <hostname>:2181 --topic test --from-beginning
+
+sudo cp $KAFKA_HOME/config/server.properties $KAFKA_HOME/config/server-1.properties
+
+sudo vi $KAFKA_HOME/config/server-1.properties
+broker.id=1
+port=9093
+log.dir=/tmp/kafka-logs-1
+
+sudo JMX_PORT=9997 $KAFKA_HOME/bin/kafka-server-start.sh $KAFKA_HOME/config/server-1.properties &
+
+sudo $KAFKA_HOME/bin/kafka-create-topic.sh --zookeeper <hostname>:2181 --replica 2 --partition 1 --topic test2
+
+sudo pkill -9 -f $KAFKA_HOME/server-1.properties
+
+ps aux | grep kafka | awk '{print $2}' | xargs sudo kill -9
+

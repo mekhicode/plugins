@@ -1,0 +1,22 @@
+
+sudo apt-get install postgis postgresql-9.1-postgis osm2pgsql osmosis
+
+createdb dbname
+psql -d dbname -f /usr/share/postgresql/9.1/contrib/postgis-1.5/postgis.sql
+psql -d dbname -f /usr/share/postgresql/9.1/contrib/postgis_comments.sql
+psql -d dbname -f /usr/share/postgresql/9.1/contrib/postgis-1.5/spatial_ref_sys.sql
+psql -d dbname -c"select postgis_lib_version();"
+
+psql dbname -c "ALTER TABLE geometry_columns OWNER TO username"
+psql dbname -c "ALTER TABLE spatial_ref_sys OWNER TO username"
+
+CREATE SEQUENCE points_id_seq;
+CREATE TABLE points ( id INTEGER PRIMARY KEY DEFAULT NEXTVAL('points_id_seq') );
+SELECT AddGeometryColumn('points', 'location', 4326, 'POINT', 2);
+CREATE INDEX points_location_idx ON points USING GIST ( location );
+
+INSERT INTO points(location) VALUES (ST_GeomFromText('POINT(-76.615657 39.327052)',4326));
+
+SELECT * FROM geometry_columns;
+SELECT * FROM points WHERE ST_Distance(location, ST_GeomFromText('POINT(-76 39)',4326)) < 1;
+SELECT * FROM points WHERE ST_Distance(location, ST_GeomFromText('POINT(-76 39)',4326)) < .1;

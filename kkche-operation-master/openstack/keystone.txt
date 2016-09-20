@@ -1,0 +1,94 @@
+
+#identity service
+
+sudo vi /etc/network/interfaces
+auto lo
+iface lo inet loopback
+auto eth0
+iface eth0 inet static
+	address	192.168.88.xxx
+	netmask	255.255.255.0
+	gateway	192.168.88.1
+auto eth1
+iface eth1 inet dhcp
+
+# service networking restart
+
+#on all nodes
+# apt-get install python-software-properties
+# apt-get install python-mysqldb ntp
+# add-apt-repository cloud-archive:havana
+# apt-get update
+
+#on the controller node
+# apt-get install mysql-server
+# sed -i '/bind-address/s/^/# /' /etc/mysql/my.cnf
+# service mysql restart
+# mysql_install_db
+# mysql_secure_installation
+
+# apt-get install rabbitmq-server
+# rabbitmqctl change_password guest <rabbit_pass>
+
+# apt-get install keystone
+
+# vi /etc/keystone/keystone.conf
+connection = mysql://keystone:<keystone_dbpass>@<controller-host>/keystone
+
+# rm /var/lib/keystone/keystone.db
+
+mysql -u root -p
+> create database keystone;
+> grant all privileges on keystone.* to 'keystone'@'localhost' identified by '<keystone_dbpass>';
+> grant all privileges on keystone.* to 'keystone'@'%' identified by '<keystone_dbpass>';
+> flush privileges;
+
+# keystone-manage db_sync
+
+# openssl rand -hex 10
+
+# vi /etc/keystone/keystone.conf
+admin_token = <service-token>
+
+# service keystone restart
+
+# vi /etc/profile.d/openstack.sh
+export OS_SERVICE_TOKEN=<service-token>
+export OS_SERVICE_ENDPOINT=http://<controller-host>:35357/v2.0
+export OS_AUTH_URL=http://<controller-host>:35357/v2.0
+export OS_TENANT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=<admin_pass>
+
+# source /etc/profile.d/openstack.sh
+
+# keystone tenant-create --name=admin --description="Admin Tenant"
+
+# keystone tenant-create --name=service --description="Service Tenant"
+
+# keystone user-create --name=admin --pass=<admin_pass> --email=admin@example.com
+
+# keystone role-create --name=admin
+
+# keystone user-role-add --user=admin --tenant=admin --role=admin
+
+# keystone service-create --name=keystone --type=identity --description="Keystone Identity Service"
+
+# keystone endpoint-create \
+  --service_id=<service_id> \
+  --publicurl=http://<controller-host>:5000/v2.0 \
+  --internalurl=http://<controller-host>:5000/v2.0 \
+  --adminurl=http://<controller-host>:35357/v2.0
+
+# unset OS_SERVICE_TOKEN OS_SERVICE_ENDPOINT
+
+# keystone token-get
+# keystone tenant-list
+# keystone tenant-get <tenant-id>
+# keystone user-list
+# keystone user-get <user-id>
+# keystone role-list
+# keystone role-get <role-id>
+# keystone endpoint-list
+# keystone endpoint-get --service=identity
+

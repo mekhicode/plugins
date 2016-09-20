@@ -1,0 +1,240 @@
+
+sudo vi /etc/apt/sources.list.d/cloudera.list
+deb [arch=amd64] http://archive.cloudera.com/search/ubuntu/precise/amd64/search precise-search1 contrib
+deb-src http://archive.cloudera.com/search/ubuntu/precise/amd64/search precise-search1 contrib
+
+curl -s http://beta.cloudera.com/search/ubuntu/precise/amd64/search/archive.key | sudo apt-key add -
+
+sudo apt-get update
+sudo apt-get install solr-server
+
+sudo vi /etc/default/solr
+SOLR_ZK_ENSEMBLE=<zk-host-1>:2181,<zk-host-2>:2181/solr
+SOLR_HDFS_HOME=hdfs://namenodehost:8020/solr
+SOLR_HDFS_CONFIG=/etc/hadoop/conf
+
+sudo -u hdfs hadoop fs -mkdir /solr
+sudo -u hdfs hadoop fs -chown solr /solr
+
+solrctl init --force
+
+sudo service solr-server restart
+sudo $JAVA_HOME/bin/jps -lm
+
+sudo mkdir /opt/cloudera_search
+sudo chown -R `whoami`:root /opt/cloudera_search
+cd /opt/cloudera_search
+solrctl instancedir --generate solr_configs
+solrctl instancedir --create collection1 solr_configs
+solrctl instancedir --list
+solrctl collection --create collection1 -s <numShards> -r <replicationFactor>
+solrctl collection --list
+
+http://<solr-host>:8983/solr/collection1/select?q=*%3A*&wt=json&indent=true
+http://<solr-host>:8983/solr/#/~cloud
+
+sudo apt-get install flume-ng-solr
+sudo apt-get install solr-mapreduce
+sudo apt-get install hbase-solr-indexer hbase-solr-doc
+
+sudo apt-get install hue-search
+
+sudo vi /etc/hue/hue.ini
+[search]
+solr_url=http://<solr-host>:8983/solr/
+
+sudo service hue restart
+
+http://<hue-host>:8888/search/
+
+sudo apt-get install solr-doc search
+cd /usr/share/doc/solr-doc*/example/exampledocs
+java -Durl=http://<solr-host>:8983/solr/collection1/update -jar post.jar *.xml
+
+cd /opt/cloudera_search
+solrctl instancedir --generate solr_configs2
+solrctl instancedir --create collection2 solr_configs2
+solrctl collection --create collection2 -s 1 -r 1
+
+solrctl instancedir --generate solr_configs3
+cp /usr/share/doc/search*/examples/solr-nrt/collection1/conf/schema.xml solr_configs3/conf
+solrctl instancedir --create collection3 solr_configs3
+solrctl collection --create collection3 -s 1
+cp -r solr_configs3 collection3
+
+sudo -u hdfs hadoop fs -mkdir /user/$USER
+sudo -u hdfs hadoop fs -chown $USER:$USER /user/$USER
+hadoop fs -mkdir /user/$USER/indir
+hadoop fs -copyFromLocal /usr/share/doc/search*/examples/test-documents/sample-statuses-*.avro /user/$USER/indir/
+hadoop fs -ls /user/$USER/indir
+
+hadoop fs -rm -r -skipTrash /user/$USER/outdir
+hadoop fs -mkdir /user/$USER/outdir
+hadoop fs -ls /user/$USER/outdir
+
+solrctl collection --deletedocs collection3
+
+hadoop jar /usr/lib/solr/contrib/mr/search-mr-*-job.jar org.apache.solr.hadoop.MapReduceIndexerTool --help
+
+hadoop --config /etc/hadoop/conf jar /usr/lib/solr/contrib/mr/search-mr-*-job.jar org.apache.solr.hadoop.MapReduceIndexerTool -D 'mapred.child.java.opts=-Xmx500m' --log4j /usr/share/doc/search*/examples/solr-nrt/log4j.properties --morphline-file /usr/share/doc/search*/examples/solr-nrt/test-morphlines/tutorialReadAvroContainer.conf --output-dir hdfs://<namenode-host>:8020/user/$USER/outdir --verbose --go-live --zk-host <zk-host>:2181/solr --collection collection3 hdfs://<namenode-host>:8020/user/$USER/indir
+
+solrctl collection --deletedocs collection3
+sudo -u hdfs hadoop fs -rm -r -skipTrash /user/$USER/outdir
+
+hadoop --config /etc/hadoop/conf jar /usr/lib/solr/contrib/mr/search-mr-*-job.jar org.apache.solr.hadoop.MapReduceIndexerTool -D 'mapred.child.java.opts=-Xmx500m' --log4j /usr/share/doc/search*/examples/solr-nrt/log4j.properties --morphline-file /usr/share/doc/search*/examples/solr-nrt/test-morphlines/tutorialReadAvroContainer.conf --output-dir hdfs://<namenode-host>:8020/user/$USER/outdir --verbose --solr-home-dir collection3 --shards 2 hdfs://<namenode-host>:8020/user/$USER/indir
+
+hadoop fs -ls /user/$USER/outdir/results
+hadoop fs -ls /user/$USER/outdir/results/part-00000/data/index
+
+sudo service solr-server stop
+hadoop fs -ls /solr/collection3
+
+sudo -u solr hadoop fs -rm -r -skipTrash /solr/collection3/<core-node>/data/index
+sudo -u hdfs hadoop fs -chown -R solr /user/$USER/outdir/results
+sudo -u solr hadoop fs -mv /user/$USER/outdir/results/part-00000/data/index /solr/collection3/<core-node>/data/
+
+sudo service solr-server start
+
+sudo cp -r solr_configs3 /etc/flume-ng/conf/collection3
+sudo cp /usr/share/doc/search*/examples/solr-nrt/twitter-flume.conf /etc/flume-ng/conf/flume.conf
+sudo cp /usr/share/doc/search*/examples/solr-nrt/test-morphlines/tutorialReadAvroContainer.conf /etc/flume-ng/conf/morphline.conf
+
+sudo vi /etc/flume-ng/conf/morphline.conf
+collection : <collection-name>
+zkHost : "<zk-host>:2181/solr"
+
+sudo cp /etc/flume-ng/conf/flume-env.sh.template /etc/flume-ng/conf/flume-env.sh
+
+sudo vi /etc/flume-ng/conf/flume-env.sh
+JAVA_OPTS="-Xmx500m -Dsolr.host=<host>"
+
+sudo bash -c 'echo "log4j.logger.org.apache.flume.sink.solr=DEBUG" >> /etc/flume-ng/conf/log4j.properties'
+sudo bash -c 'echo "log4j.logger.com.cloudera.cdk.morphline=TRACE" >> /etc/flume-ng/conf/log4j.properties'
+
+sudo vi /etc/flume-ng/conf/flume.conf
+agent.sources = httpSrc
+
+cp /usr/share/doc/search*/examples/test-documents/sample-statuses-20120906-141433-medium.avro /tmp/test.avro
+curl --data-binary @/tmp/test.avro 'http://127.0.0.1:5140?resourceName=test.avro' --header 'Content-Type:application/octet-stream' --verbose
+
+sudo vi /etc/flume-ng/conf/flume.conf
+agent.sources = spoolSrc
+
+rm -rf /tmp/myspooldir
+sudo -u flume mkdir /tmp/myspooldir
+
+sudo -u flume cp /usr/share/doc/search*/examples/test-documents/sample-statuses-20120906-141433-medium.avro /tmp/myspooldir/.sample-statuses-20120906-141433-medium.avro
+sudo -u flume mv /tmp/myspooldir/.sample-statuses-20120906-141433-medium.avro /tmp/myspooldir/sample-statuses-20120906-141433-medium.avro
+
+solrctl collection --deletedocs collection3
+sudo /etc/init.d/flume-ng-agent restart
+tail -f /var/log/flume-ng/flume.log
+
+cat /usr/share/doc/hbase-solr-doc*/demo/hbase-site.xml
+
+sudo vi /etc/hbase/conf/hbase-site.xml
+<property>
+  <name>hbase.replication</name>
+  <value>true</value>
+</property>
+<property>
+  <name>replication.source.ratio</name>
+  <value>1.0</value>
+</property>
+<property>
+  <name>replication.source.nb.capacity</name>
+  <value>1000</value>
+</property>
+<property>
+  <name>replication.replicationsource.implementation</name>
+  <value>com.ngdata.sep.impl.SepReplicationSource</value>
+</property>
+
+sudo vi /etc/hbase-solr/conf/hbase-indexer-site.xml
+<property>
+  <name>hbaseindexer.zookeeper.connectstring</name>
+  <value><hbase-zk-host>:2181</value>
+</property> 
+
+for x in `cd /etc/init.d ; ls hbase*` ; do sudo service $x restart ; done
+sudo service hbase-solr-indexer restart
+sudo jps -lm
+
+hbase shell
+> disable 'record'
+> alter 'record', {NAME => 'data', REPLICATION_SCOPE => 1}
+> enable 'record'
+> create 'record', {NAME => 'data', REPLICATION_SCOPE => 1}
+
+cd $HOME/software/cloudera_search
+solrctl instancedir --generate hbase-collection1
+
+vi hbase-collection1/conf/schema.xml
+<field name="data" type="string" indexed="true" stored="true" required="true" multiValued="false" /> 
+
+solrctl instancedir --create hbase-collection1 hbase-collection1
+solrctl collection --create hbase-collection1
+
+vi hbase-collection1/morphline-hbase-mapper.xml
+<?xml version="1.0"?>
+<indexer table="record" mapper="com.ngdata.hbaseindexer.morphline.MorphlineResultToSolrMapper">
+  <param name="morphlineFile" value="/etc/hbase-solr/conf/morphlines.conf"/>
+  <param name="morphlineId" value="morphline1"/>
+</indexer>
+
+sudo vi /etc/hbase-solr/conf/morphlines.conf
+morphlines : [
+  {
+    id : morphline1
+    importCommands : ["com.cloudera.cdk.morphline.**", "com.ngdata.**"]
+
+    commands : [                    
+      {
+        extractHBaseCells {
+          mappings : [
+            {
+              inputColumn : "data:*"
+              outputField : "data" 
+              type : string 
+              source : value
+            }
+
+            #{
+            #  inputColumn : "data:item"
+            #  outputField : "attachment_body" 
+            #  type : "byte[]" 
+            #  source : value
+            #}
+          ]
+        }
+      }
+
+      #{ readAvroContainer {} } 
+      #{ 
+      #  extractAvroPaths {
+      #    paths : { 
+      #      data : /user_name
+      #    }
+      #  }
+      #}
+
+      { logTrace { format : "output record: {}", args : ["@{}"] } }    
+    ]
+  }
+]
+
+hbase-indexer add-indexer --name myIndexer \
+--indexer-conf hbase-collection1/morphline-hbase-mapper.xml \
+--connection-param solr.zk=<solr-zk-host1>:2181,<solr-zk-host2>:2181/solr \
+--connection-param solr.collection=hbase-collection1 \
+--zookeeper <hbase-zk-host>:2181
+
+hbase-indexer add-indexer --help
+hbase-indexer list-indexers --help
+hbase-indexer update-indexer --help
+hbase-indexer delete-indexer --help
+
+hbase shell
+> put 'record', 'row1', 'data', 'value'
+> put 'record', 'row2', 'data', 'value2'
+

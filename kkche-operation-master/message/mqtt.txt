@@ -1,0 +1,8 @@
+
+sudo add-apt-repository ppa:mosquitto-dev/mosquitto-ppa
+sudo apt-get update
+sudo apt-get install mosquitto mosquitto-clients libmosquitto-dev
+
+mosquitto_sub -d -t topic1/topic2
+mosquitto_pub -d -t topic1/topic2 -m "Hello"
+

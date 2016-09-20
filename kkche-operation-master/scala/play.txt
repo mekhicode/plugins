@@ -1,0 +1,37 @@
+
+unzip play-2.3.4.zip
+mv play-2.3.4 ~/software/
+
+vi ~/.bash_profile
+export PLAY_HOME=$HOME/software/play-2.3.4
+export PATH=$PLAY_HOME:$PATH
+
+vi ~/.bashrc
+[[ -f $HOME/.bash_profile ]] && . $HOME/.bash_profile
+
+source ~/.bash_profile
+
+play help
+play new <project-name>
+cd <project-name>
+play debug
+$ help play
+$ ~ compile
+$ ~ run
+$ ~ test
+$ ~ test-only <some_package>.<some_class>
+$ dependencies
+$ eclipse with-source=true
+$ eclipse skip-parents=false
+play clean-all
+play clean compile stage
+sudo target/start -Dhttp.port=80
+
+play -DapplyEvolutions.default=true run 
+play -DapplyEvolutions.default=true start 
+./target/start -DapplyEvolutions.default=true
+nohup play start
+
+play debug run
+Eclipse -> Debug Configurations -> Remote Java Application, Port: 9999
+

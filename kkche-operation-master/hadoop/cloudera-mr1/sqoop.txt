@@ -1,0 +1,68 @@
+
+sudo apt-get install sqoop2-server
+sudo apt-get install sqoop2-client
+
+sudo apt-get install mysql-client
+sudo cp /usr/share/java/mysql-connector-java-5.1.16.jar /var/lib/sqoop2/
+
+mysql -u root -h <mysql-host> -p
+> use mysql
+> grant all privileges on *.* to 'root'@'%' identified by '<password>' with grant option;
+> flush privileges;
+
+sudo update-alternatives --display sqoop2-conf
+
+sudo vi /etc/default/sqoop2-server
+CATALINA_BASE=/usr/lib/sqoop2/sqoop-server-0.20
+
+sudo mkdir /var/run/sqoop2
+sudo chown sqoop2 /var/run/sqoop2
+
+sudo service sqoop2-server restart
+
+wget -qO - <sqoop2-server-host>:12000/sqoop/version
+
+sudo usermod -a -G hadoop sqoop2
+sudo -u hdfs hadoop fs -mkdir /sqoop2
+sudo -u hdfs hadoop fs -chown sqoop2:hadoop /sqoop2
+sudo -u hdfs hadoop fs -mkdir /tmp/hadoop-mapred/mapred/staging/sqoop2
+sudo -u hdfs hadoop fs -chown -R sqoop2:hadoop /tmp/hadoop-mapred/mapred/staging/sqoop2
+
+sqoop2
+> set server --host <sqoop2-server-host>
+> show version --all
+> show connector --all
+
+> create connection --cid <connection-id>
+Name: <connection-name>
+JDBC Driver Class: com.mysql.jdbc.Driver
+JDBC Connection String: jdbc:mysql://<mysql-host>/<database-name>
+Username: <username>
+Password: <password>
+
+> show connection --all
+> update connection --xid <connection-id>
+> delete connection --xid <connection-id>
+
+> create job --xid <connection-id> --type import
+Name: <job-name>
+Table name: <table-name>
+Storage type: HDFS
+Output format: TEXT_FILE
+Output directory: /sqoop2/<table-name>
+
+> create job --xid <connection-id> --type export
+Name: <job-name>
+Table name: <table-name>
+Input directory: /sqoop2/<table-name>
+
+> show job --all
+> update job --jid <job-id>
+> delete job --jid <job-id>
+
+> start job --jid <job-id>
+> status job --jid <job-id>
+> stop job --jid <job-id>
+
+sudo -u hdfs hadoop fs -ls /sqoop2/<table-name>
+

@@ -1,0 +1,12 @@
+
+wget http://mirror.bit.edu.cn/apache/pig/pig-0.13.0/pig-0.13.0.tar.gz
+
+sudo vi /etc/profile.d/pig.sh
+export PIG_HOME=~/software/pig-0.13.0
+export PATH=$PIG_HOME/bin:$PATH
+
+$PIG_HOME/bin/pig
+grunt> ls
+grunt> A = LOAD 'input';
+grunt> B = FILTER A BY $0 MATCHES '.*dfs[a-z.]+.*';
+grunt> DUMP B;

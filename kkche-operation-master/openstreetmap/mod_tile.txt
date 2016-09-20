@@ -1,0 +1,13 @@
+sudo add-apt-repository ppa:kakrueger/openstreetmap
+sudo apt-get update
+sudo apt-get install libapache2-mod-tile libmapnik2-dev mapnik-utils python-mapnik2 renderd openstreetmap-postgis-db-setup openstreetmap-mapnik-stylesheet-data
+
+osm2pgsql --slim -C 1500 planet-120613.osm.pbf -S /usr/share/osm2pgsql/default.style
+
+sudo ln -s /usr/share/osm2pgsql/default.style /usr/share/default.style
+
+sudo fuser /var/cache/debconf/config.dat
+ps aux | grep 4503
+sudo kill 4503
+
+http://localhost/osm/slippymap.html

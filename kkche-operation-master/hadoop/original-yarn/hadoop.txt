@@ -1,0 +1,164 @@
+
+#build Hadoop 2.4.0 on Ubuntu 14.04 LTS 64bit
+#install maven jdk
+
+sudo apt-get install build-essential
+sudo apt-get install libtool cmake zlib1g-dev libssl-dev protobuf-compiler
+
+tar xfz hadoop-2.4.0-src.tar.gz
+mv hadoop-2.4.0-src ~/software
+
+mvn package -Pnative -DskipTests -Dtar
+
+tar xfz hadoop-2.4.0.tar.gz
+mv hadoop-2.4.0 ~/software
+file ~/software/hadoop-2.4.0/lib/native*
+
+#config hadoop
+
+vi ~/.bash_profile
+export HADOOP_HOME=$HOME/software/hadoop-2.4.0
+export PATH=$HADOOP_HOME/bin:$PATH
+export PATH=$HADOOP_HOME/sbin:$PATH
+
+vi ~/.bashrc
+[[ -f $HOME/.bash_profile ]] && . $HOME/.bash_profile
+
+source ~/.bash_profile
+
+ssh-keygen -t rsa
+ssh-copy-id `whoami`@`hostname`
+ssh-add
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+
+vi $HADOOP_HOME/etc/hadoop/core-site.xml
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://<host>:8020</value>
+  </property>
+  <property>
+    <name>hadoop.native.lib</name>
+    <value>false</value>
+  </property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/hdfs-site.xml
+<configuration>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/data/hadoop/dfs/nn</value>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>/data/hadoop/dfs/dn</value>
+  </property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/yarn-site.xml
+<configuration>
+  <property>
+    <name>yarn.resourcemanager.address</name>
+    <value><host>:8031</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.scheduler.address</name>
+    <value><host>:8030</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.resource-tracker.address</name>
+    <value><host>:8025</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.admin.address</name>
+    <value><host>:8141</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.webapp.address</name>
+    <value><host>:8088</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.scheduler.class</name>
+    <value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.address</name>
+    <value><host>:8034</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.resource.memory-mb</name>
+    <value>10240</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.local-dirs</name>
+    <value>/data/hadoop/yarn/local</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.log-dirs</name>
+    <value>/data/hadoop/yarn/log</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+  </property>
+</configuration>
+
+cp $HADOOP_HOME/etc/hadoop/mapred-site.xml.template $HADOOP_HOME/etc/hadoop/mapred-site.xml
+
+vi $HADOOP_HOME/etc/hadoop/mapred-site.xml
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+  </property>
+  <property>
+    <name>mapreduce.cluster.temp.dir</name>
+    <value>/data/hadoop/mr/tmp</value>
+    <final>true</final>
+  </property>
+  <property>
+    <name>mapreduce.cluster.local.dir</name>
+    <value>/data/hadoop/mr/local</value>
+    <final>true</final>
+  </property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+export JAVA_HOME=/usr/lib/jvm/default-java
+export HADOOP_COMMON_LIB_NATIVE_DIR=${HADOOP_PREFIX}/lib/native
+export HADOOP_OPTS="-Djava.library.path=$HADOOP_PREFIX/lib"
+
+vi $HADOOP_HOME/etc/hadoop/slaves
+<host>
+
+sudo mkdir -p /data/hadoop/dfs/nn
+sudo chown -R `whoami`:root /data/hadoop/dfs/nn
+sudo mkdir -p /data/hadoop/dfs/dn
+sudo chown -R `whoami`:root /data/hadoop/dfs/dn
+sudo mkdir -p /data/hadoop/yarn/local
+sudo chown -R `whoami`:root /data/hadoop/yarn/local
+sudo mkdir -p /data/hadoop/yarn/log
+sudo chown -R `whoami`:root /data/hadoop/yarn/log
+sudo mkdir -p /data/hadoop/mr/tmp
+sudo chown -R `whoami`:root /data/hadoop/mr/tmp
+sudo mkdir -p /data/hadoop/mr/local
+sudo chown -R `whoami`:root /data/hadoop/mr/local
+
+$HADOOP_HOME/bin/hdfs namenode -format
+$HADOOP_HOME/sbin/start-dfs.sh
+$HADOOP_HOME/sbin/start-yarn.sh
+jps
+
+http://<host>:50070/
+http://<host>:8088/
+
+$HADOOP_HOME/bin/hadoop fs -ls -R /
+$HADOOP_HOME/bin/hadoop fs -mkdir -p /user/$USER
+$HADOOP_HOME/bin/hadoop fs -mkdir input
+$HADOOP_HOME/bin/hadoop fs -put $HADOOP_HOME/etc/hadoop/*.xml input
+$HADOOP_HOME/bin/hadoop fs -ls input
+$HADOOP_HOME/bin/hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.4.0.jar grep input output 'dfs[a-z.]+'
+$HADOOP_HOME/bin/hadoop fs -ls
+$HADOOP_HOME/bin/hadoop fs -ls output
+$HADOOP_HOME/bin/hadoop fs -cat output/part-r-00000 | head
+$HADOOP_HOME/bin/hadoop fs -rm -r output*

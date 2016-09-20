@@ -1,0 +1,71 @@
+
+wget -O - http://planet.openstreetmap.org/planet_latest.osm.bz2 |bzcat >planet_latest.osm
+
+sudo apt-get install apache2 apache2-threaded-dev libmagickwand-dev postgresql postgresql-client pgadmin3 postgresql-contrib
+
+git clone https://github.com/openstreetmap/openstreetmap-website.git
+
+sudo -u postgres -i
+createuser openstreetmap -s -P
+createdb -E UTF8 -O openstreetmap openstreetmap
+psql -d openstreetmap -c "CREATE EXTENSION btree_gist;"
+
+sudo apt-get install libsasl2-dev memcached libmemcached-dev libmemcached-dbg libmemcached-tools libmemcache-client-ruby
+
+cp config/example.application.yml config/application.yml
+cp config/example.database.yml config/database.yml
+bundle install
+rake db:migrate RAILS_ENV=production
+rails server
+
+osmosis --read-xml-0.6 file="planet.osm.bz2" --write-apidb-0.6 populateCurrentTables=yes host="localhost" database="openstreetmap" user="openstreetmap" password="openstreetmap" validateSchemaVersion=no
+
+sudo -u postgres -i
+select setval('acls_id_seq', (select max(id) from acls)); 
+select setval('changesets_id_seq', (select max(id) from changesets)); 
+select setval('countries_id_seq', (select max(id) from countries)); 
+select setval('current_nodes_id_seq', (select max(id) from current_nodes)); 
+select setval('current_relations_id_seq', (select max(id) from current_relations)); 
+select setval('current_ways_id_seq', (select max(id) from current_ways)); 
+select setval('diary_comments_id_seq', (select max(id) from diary_comments)); 
+select setval('diary_entries_id_seq', (select max(id) from diary_entries)); 
+select setval('friends_id_seq', (select max(id) from friends)); 
+select setval('gpx_file_tags_id_seq', (select max(id) from gpx_file_tags)); 
+select setval('gpx_files_id_seq', (select max(id) from gpx_files)); 
+select setval('messages_id_seq', (select max(id) from messages)); 
+select setval('sessions_id_seq', (select max(id) from sessions)); 
+select setval('user_tokens_id_seq', (select max(id) from user_tokens)); 
+select setval('users_id_seq', (select max(id) from users));
+
+rails console
+>> user = User.find_by_display_name("My New User Name")
+>> user.status = "active"
+>> user.save!
+>> user.roles.create( {:role => "administrator", :granter_id => user.id}, :without_protection => true)
+>> user.roles.create( {:role => "moderator", :granter_id => user.id}, :without_protection => true)
+>> user.save!
+
+sudo apt-get install postgresql-server-dev-9.1
+cd db/functions
+make libpgosm.so
+
+sudo -u postgres -i
+CREATE FUNCTION maptile_for_point(int8, int8, int4) RETURNS int4 
+AS '/home/user/reference/ruby/openstreetmap-website/db/functions/libpgosm', 'maptile_for_point'
+LANGUAGE C STRICT;
+
+CREATE FUNCTION tile_for_point(int4, int4) RETURNS int8 
+AS '/home/user/reference/ruby/openstreetmap-website/db/functions/libpgosm', 'tile_for_point'
+LANGUAGE C STRICT;
+
+sudo apt-get install josm merkaartor
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 

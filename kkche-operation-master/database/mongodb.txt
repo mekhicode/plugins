@@ -1,0 +1,99 @@
+
+echo 'deb http://downloads-distro.mongodb.org/repo/ubuntu-upstart dist 10gen' | \
+sudo tee /etc/apt/sources.list.d/mongodb.list
+
+sudo apt-key adv --keyserver keyserver.ubuntu.com --recv 7F0CEB10
+
+sudo apt-get update && sudo apt-get install mongodb-org
+
+sudo vi /etc/mongodb.conf
+auth = true
+port = 27017
+bind_ip = 127.0.0.1
+replSet= <replSet name>
+dbpath = <db dir>
+fork = true
+logappend = true
+logpath = <log dir>
+
+
+sudo service mongod restart
+
+netstat -tln
+sudo lsof -i:27017
+tail -f /var/log/mongodb/mongod.log
+
+sudo chkconfig mongod
+sudo update-rc.d mongod defaults
+
+mongo
+> use admin
+> db.addUser("<username>", "<password>")
+> db.auth("<username>", "<password>")
+> db.system.users.find()
+> use <db_name>
+> db.addUser("<username>", "<password>")
+> show dbs
+> use <db_name>
+> db.dropDatabase()
+> show collections
+> db.<collection_name>.drop()
+> db.<collection_name>.find().limit(5)
+> db.<collection_name>.update({_id:ObjectId("<oid>"), { }...})
+> db.<collection_name>.remove({ })
+> db.fs.chunks.count()
+> db.fs.chunks.findOne()
+> db.fs.files.find({_id:ObjectId("<oid>")})
+> db.fs.chunks.find({files_id:ObjectId("<oid>")})
+
+
+# backup and migration
+sudo service mongod stop
+sudo mongodump --dbpath /var/lib/mongodb --out /var/lib/mongodb.backup
+mongodump --collection share_job --db kanche --out ./share_job_dump
+mongorestore /var/lib/mongodb.backup
+# mongorestore <dir> --host <replSetName>/<hostname1><:port>
+
+# Replica Set
+# at PRIMARY node
+
+# Add the fastsync=true option to /etc/tokumx.conf on all secondaries
+
+mongo <host>:<port>
+> rs.initiate()
+> rs.add('<host name>:<port>')
+> rs.status()
+> rs.addArb("<host name>:<port>")
+
+
+# Replica Set(n) + Config server(n) + Mongos(n) + Arbiter(1)
+sudo mkdir -p /data/mongo/{db,logs,configdb,configlog,mongoslog}
+sudo mkdir /etc/mongodb/
+
+# sudo vim /etc/mongodb/configSvr.conf
+# configsvr = true
+sudo mongod --fork --configsvr --port <config port> --dbpath /data/mongo/configdb --logpath /data/mongo/configlog
+sudo ps aux | grep mongod
+# mkdir -p /data/mongo/arb
+# mongod --port <port> --dbpath /data/mongo/arb --replSet <rs name>
+# rs.addArb("<host name>:<port>")
+
+mongos --configdb <config server hostname1>:<config server port1>,<config server hostname2>:<config server port2> \
+-port <mongos port> \
+-logpath /data0/mongo/mongoslog/mongos.log -logappend -fork
+
+mongo <mongos host>:<mongos port>
+> use admin
+> db.runCommand({addshard:"<replica name>/<host1>:<port1>,<host2>:<port2>",name:"<shard name>"})
+> db.runCommand({listshards:1})
+> db.runCommand({ismaster:1})
+> printShardingStatus()
+
+# Shards
+> db.runCommand( { enablesharding : "<dbname>" } )
+> db.runCommand( { shardcollection : "<collection name>",key :{<index key>} })
+> printShardingStatus()
+
+
+# Convert a Standalone to a Replica Set
+mongod --port <port> --dbpath <dbpath> --replSet <rsname>

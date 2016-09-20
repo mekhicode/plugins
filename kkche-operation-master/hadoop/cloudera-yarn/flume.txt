@@ -1,0 +1,27 @@
+
+sudo apt-get install flume-ng flume-ng-agent
+
+sudo update-alternatives --display flume-ng-conf
+
+sudo cp /media/sf_favorites/notes/hadoop/cluster/flume-conf/* /etc/flume-ng/conf.empty/
+
+sudo vi /etc/flume-ng/conf.empty/flume.conf
+agent.sources = tailSrc
+agent.channels = memoryChannel
+agent.sinks = hdfsSink
+agent.sources.tailSrc.type = exec
+agent.sources.tailSrc.command = tail -f /var/log/flume-ng/flume.log
+agent.sources.tailSrc.channels = memoryChannel
+agent.sinks.hdfsSink.type = hdfs
+agent.sinks.hdfsSink.hdfs.path = hdfs://cdh4-yarn-host-1.quanqiuwang.com:8020/flume
+agent.sinks.hdfsSink.channel = memoryChannel
+agent.channels.memoryChannel.type = memory
+agent.channels.memoryChannel.capacity = 100
+
+sudo -u hdfs hadoop fs -mkdir /flume
+sudo -u hdfs hadoop fs -chown flume /flume
+
+sudo /etc/init.d/flume-ng-agent restart
+
+flume-ng help
+

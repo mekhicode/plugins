@@ -1,0 +1,76 @@
+
+#ubuntu
+gem install passenger
+passenger-install-apache2-module
+
+sudo vi /etc/apache2/apache2.conf
+LoadModule passenger_module /home/user/.rvm/gems/ruby-1.9.2-p290/gems/passenger-3.0.11/ext/apache2/mod_passenger.so
+PassengerRoot /home/user/.rvm/gems/ruby-1.9.2-p290/gems/passenger-3.0.11
+PassengerRuby /home/user/.rvm/wrappers/ruby-1.9.2-p290/ruby
+
+sudo vi /etc/apache2/sites-available/default
+   <VirtualHost *:80>
+      ServerName jishufan.com
+      DocumentRoot /home/user/workspace/jishufan/public
+      <Directory /home/user/workspace/jishufan/public>
+          Allow from all
+          Options -MultiViews
+      </Directory>
+   </VirtualHost>
+   <VirtualHost *:80>
+      ServerName jishufan.com
+      DocumentRoot /var/www
+      RailsBaseURI /jishufan
+      <Directory /var/www/jishufan>
+          Options -MultiViews
+      </Directory>
+   </VirtualHost>
+
+sudo ln -s /home/user/workspace/jishufan/public /var/www/jishufan
+sudo chown -R root:root /var/www/jishufan
+sudo chmod -R 777 /var/www/jishufan
+
+sudo service apache2 restart
+
+   <VirtualHost *:80>
+      ServerName www.yourhost.com
+      DocumentRoot /somewhere/public
+      <Directory /somewhere/public>
+         AllowOverride all
+         Options -MultiViews
+      </Directory>
+   </VirtualHost>
+
+rails new testapp -f -d mysql
+rake db:create RAILS_ENV=production
+rake db:migrate RAILS_ENV=production
+
+vi config/environments/production.rb
+config.assets.compile = true
+
+bundle exec rake assets:precompile
+
+
+
+
+#osx
+sudo vi /etc/apache2/httpd.conf
+Include /private/etc/apache2/extra/httpd-vhosts.conf
+LoadModule passenger_module /Users/user/.rvm/gems/ruby-1.9.2-p180/gems/passenger-3.0.9/ext/apache2/mod_passenger.so
+PassengerRoot /Users/user/.rvm/gems/ruby-1.9.2-p180/gems/passenger-3.0.9
+PassengerRuby /Users/user/.rvm/wrappers/ruby-1.9.2-p180/ruby
+
+sudo vi /etc/apache2/extra/httpd-vhosts.conf
+   <VirtualHost *:80>
+      ServerName jishufan.com
+      DocumentRoot /Library/WebServer/Documents
+      RailsBaseURI /jishufan
+      <Directory /Library/WebServer/Documents/jishufan>
+          Options -MultiViews
+      </Directory>
+   </VirtualHost>
+ln -s /Users/user/Documents/workspace/jishufan/public /Library/WebServer/Documents/jishufan
+sudo apachectl restart
+
+
+

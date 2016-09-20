@@ -1,0 +1,362 @@
+
+sudo apt-get install hive hive-metastore hive-server2
+
+sudo apt-get install mysql-client
+sudo ln -s /usr/share/java/mysql-connector-java-5.1.16.jar /usr/lib/hive/lib/libmysql-java.jar
+ls /usr/lib/hive/lib/libmysql-java.jar
+
+mysql -u root -h <mysql-host> -p
+> create user '<username>'@'%' identified by '<password>';
+> create database hive;
+> use hive;
+> source /usr/lib/hive/scripts/metastore/upgrade/mysql/hive-schema-0.10.0.mysql.sql;
+> grant all privileges on hive.* to '<username>'@'%' identified by '<password>' with grant option;
+> flush privileges;
+
+sudo vi /etc/hive/conf/hive-site.xml
+<property>
+  <name>mapred.job.tracker</name>
+  <value><jobtracker-host>:8021</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionURL</name>
+  <value>jdbc:mysql://<mysql-host>/hive</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionDriverName</name>
+  <value>com.mysql.jdbc.Driver</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionUserName</name>
+  <value><username></value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionPassword</name>
+  <value><password></value>
+</property>
+<property>
+  <name>datanucleus.autoCreateSchema</name>
+  <value>false</value>
+</property>
+<property>
+  <name>datanucleus.fixedDatastore</name>
+  <value>true</value>
+</property>
+<property>
+  <name>datanucleus.autoStartMechanism</name> 
+  <value>SchemaTable</value>
+</property>
+<property>
+  <name>hive.metastore.uris</name>
+  <value>thrift://<hive-metastore-host>:9083</value>
+</property>
+<property>
+  <name>hive.support.concurrency</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hive.zookeeper.quorum</name>
+  <value><zookeeper-host></value>
+</property>
+
+sudo update-alternatives --display hive-conf
+
+sudo service hive-metastore restart
+sudo service hive-server2 restart
+
+sudo usermod -a -G hadoop hive
+sudo -u hdfs hadoop fs -mkdir /user/hive/warehouse
+sudo -u hdfs hadoop fs -chown -R hive /user/hive
+
+beeline
+> !connect jdbc:hive2://<hive-server2-host>:10000 <username> <password> org.apache.hive.jdbc.HiveDriver
+> show tables;
+
+hive
+> create table user (id string, username string);
+> show tables;
+> show create table user;
+> describe user;
+> alter table user add columns (name string);
+> load data inpath '</path/to/some/data>' overwrite into table user;
+> select u.* from user u where u.id like '%1%';
+> drop table user;
+
+> ADD JAR /usr/lib/hive/lib/zookeeper.jar;
+> ADD JAR /usr/lib/hive/lib/hbase.jar;
+> ADD JAR /usr/lib/hive/lib/hive-hbase-handler-0.10.0-cdh4.5.0.jar;
+> ADD JAR /usr/lib/hive/lib/guava-11.0.2.jar;
+
+sudo apt-get install hcatalog webhcat webhcat-server
+
+sudo vi /etc/webhcat/conf/webhcat-default.xml
+
+sudo service webhcat-server start
+
+hcat -e "create table groups(name string,placeholder string,id int) row format delimited fields terminated by ':' stored as textfile"
+
+hcat -e "desc groups"
+
+hive -e "load data local inpath '/etc/group' overwrite into table groups"
+
+sudo vi /usr/bin/pig
+#exec /usr/lib/pig/bin/pig "$@"
+exec /usr/lib/pig/bin/pig -useHCatalog -l /dev/null
+
+pig
+> A = LOAD 'groups' USING org.apache.hcatalog.pig.HCatLoader();
+> DESCRIBE A;
+> DUMP A;
+
+http://<webhcat-host>:50111/templeton/v1/ddl/database/?user.name=<username>
+http://<webhcat-host>:50111/templeton/v1/ddl/database/default/table/?user.name=<username>
+http://<webhcat-host>:50111/templeton/v1/ddl/database/default/table/groups?user.name=<username>
+
+#test
+hive
+> drop table if exists trans_txt;
+
+> CREATE EXTERNAL TABLE trans_txt( 
+  pri_acct_no string, 
+  mchnt_cd string, 
+  trans_id string, 
+  mchnt_tp string, 
+  acpt_ins_id_cd string, 
+  iss_ins_id_cd string, 
+  cups_card_in string, 
+  cups_sig_card_in string, 
+  card_class string, 
+  card_cata string, 
+  card_attr string, 
+  card_brand string, 
+  card_prod string, 
+  card_lvl string, 
+  trans_chnl string, 
+  trans_media string, 
+  term_id string, 
+  trans_at bigint, 
+  trans_rcv_ts string) 
+ROW FORMAT DELIMITED
+  FIELDS TERMINATED BY ','
+LOCATION
+  '/user/user/trans_txt';
+
+> select
+pri_acct_no,
+mchnt_cd,
+mchnt_tp,
+term_id,
+trans_at,
+trans_rcv_ts
+from
+trans_txt
+where
+trans_at >= 50000
+and (
+  cast(substr(trans_rcv_ts, 12, 2) as int) >= 21
+  or cast(substr(trans_rcv_ts, 12, 2) as int) <= 4
+) limit 10;
+
+> select
+count(a.pri_acct_no)
+from
+( select
+  pri_acct_no,
+  count(mchnt_cd) n_transaction
+  from
+  trans_txt
+  where
+  trans_at >= 50000
+  and (
+    cast(substr(trans_rcv_ts, 12, 2) as int) >= 21
+    or cast(substr(trans_rcv_ts, 12, 2) as int) <= 4
+  )
+  group by
+  pri_acct_no ) a
+where
+a.n_transaction >= 2;
+
+> select
+count(a.pri_acct_no)
+from
+( select
+  pri_acct_no,
+  sum(trans_at) total_amount
+  from
+  trans_txt
+  group by
+  pri_acct_no ) a
+where
+a.total_amount > 4000000;
+
+> select
+iss_ins_id_cd,
+count(pri_acct_no),
+sum(trans_at),
+min(trans_at),
+max(trans_at)
+from
+trans_txt
+where
+iss_ins_id_cd in (
+  '01020000',
+  '01030000',
+  '01050000',
+  '03080000',
+  '03010000' )
+and  substr(trans_rcv_ts, 1, 4) = '2013'
+and trans_at > 0  
+and trans_at < 100000000 
+group by iss_ins_id_cd;
+
+> insert overwrite directory '/tmp/trans_txt_new'
+select distinct substring(pri_acct_no,1,11)   
+from
+trans_txt   
+where
+mchnt_tp in (
+  '5271',
+  '7992',
+  '5013',
+  '5521',
+  '5532',
+  '5599',
+  '4784'
+);
+
+> CREATE EXTERNAL TABLE trans_txt_city( 
+  pri_acct_no string, 
+  mchnt_cd string, 
+  trans_id string, 
+  mchnt_tp string, 
+  acpt_ins_id_cd string, 
+  iss_ins_id_cd string, 
+  cups_card_in string, 
+  cups_sig_card_in string, 
+  card_class string, 
+  card_cata string, 
+  card_attr string, 
+  card_brand string, 
+  card_prod string, 
+  card_lvl string, 
+  trans_chnl string, 
+  trans_media string, 
+  term_id string, 
+  trans_at bigint, 
+  trans_rcv_ts string)
+PARTITIONED BY (
+  city string)
+ROW FORMAT DELIMITED
+  FIELDS TERMINATED BY ','
+LOCATION
+  '/user/user/trans_txt_city';
+
+> alter table trans_txt_city add partition(city='shanghai') 
+location '/user/user/trans_txt_city/city=shanghai';
+
+> insert overwrite table trans_txt_city 
+partition (city="shanghai")
+select * from trans_txt;
+
+> select * from trans_txt_city where city = 'shanghai' limit 10;
+
+> ADD JAR /usr/lib/hive/lib/hive-contrib-0.10.0-cdh4.5.0.jar;
+> CREATE TABLE IF NOT EXISTS apachelog(
+  remotehost string,
+  remotelogname string,
+  user string,
+  time string,
+  method string,
+  uri string,
+  proto string,
+  status string,
+  bytes string,
+  referer string,
+  useragent string)
+ROW FORMAT SERDE 
+  'org.apache.hadoop.hive.contrib.serde2.RegexSerDe'
+WITH SERDEPROPERTIES (
+  "input.regex" = "^([^ ]*) +([^ ]*) +([^ ]*) +\\[([^]]*)\\] +\\\"([^ ]*) ([^ ]*) ([^ ]*)\\\" ([^ ]*) ([^ ]*) (?:\\\"-\\\")*\\\"(.*)\\\" (.*)$", 
+  "output.format.string" = "%1$s %2$s %3$s %4$s %5$s %6$s %7$s %8$s %9$s %10$s %11$s")
+STORED AS TEXTFILE;
+
+> SET hive.exec.compress.output=true;
+> set io.seqfile.compression.type=block;
+> SET mapred.max.split.size=256000000;
+> SET mapred.output.compression.type=BLOCK;
+> SET mapred.output.compression.codec=org.apache.hadoop.io.compress.SnappyCodec;
+> SET hive.exec.dynamic.partition.mode=nonstrict;
+> SET hive.exec.dynamic.partition=true;
+
+> CREATE TABLE trans_seq( 
+  pri_acct_no string, 
+  mchnt_cd string, 
+  trans_id string, 
+  mchnt_tp string, 
+  acpt_ins_id_cd string, 
+  iss_ins_id_cd string, 
+  cups_card_in string, 
+  cups_sig_card_in string, 
+  card_class string, 
+  card_cata string, 
+  card_attr string, 
+  card_brand string, 
+  card_prod string, 
+  card_lvl string, 
+  trans_chnl string, 
+  trans_media string, 
+  term_id string, 
+  trans_at bigint, 
+  trans_rcv_ts string) 
+ROW FORMAT DELIMITED
+  FIELDS TERMINATED BY ','
+STORED AS SEQUENCEFILE;
+
+> load data inpath '/user/user/trans_zip/*.gz' into table trans_seq;
+> insert overwrite table trans_seq select * from trans_txt;
+
+> set hive.exec.compress.output=true;
+> set avro.output.codec=snappy;
+> CREATE TABLE new_table
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+TBLPROPERTIES ('avro.schema.literal'='{
+    "name": "my_record",
+    "type": "record",
+    "fields": [
+    {"name":"bool_col", "type":"boolean"},
+    {"name":"int_col", "type":"int"},
+    {"name":"long_col", "type":"long"},
+    {"name":"float_col", "type":"float"},
+    {"name":"double_col", "type":"double"},
+    {"name":"string_col", "type":"string"},
+    {"name": "nullable_int", "type": ["int", "null"]]}');
+
+#tblproperties ('avro.schema.url'='hdfs://name-node:port/path/to/schema.json');
+
+> CREATE TABLE avro_table (a int, b string)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.avro.AvroSerDe'
+STORED AS INPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat'
+OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
+TBLPROPERTIES (
+  'avro.schema.literal'='{
+    "type": "record",
+    "name": "my_record",
+    "fields": [
+      {"name": "a", "type": "int"},
+      {"name": "b", "type": "string"}
+    ]}');
+> INSERT OVERWRITE TABLE avro_table SELECT 1, "avro" FROM other_table LIMIT 1;
+> ALTER TABLE avro_table CHANGE A A FLOAT;
+> ALTER TABLE avro_table ADD COLUMNS (c int);
+> ALTER TABLE avro_table SET TBLPROPERTIES (
+  'avro.schema.literal'='{
+    "type": "record",
+    "name": "my_record",
+    "fields": [
+      {"name": "a", "type": "int"},
+      {"name": "b", "type": "string"},
+      {"name": "c", "type": "int", "default": 10}
+    ]}');
+

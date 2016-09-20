@@ -1,0 +1,8 @@
+
+sudo su
+curl http://repo.varnish-cache.org/debian/GPG-key.txt | apt-key add -
+echo "deb http://repo.varnish-cache.org/ubuntu/ $(lsb_release -cs) varnish-3.0" >> /etc/apt/sources.list
+apt-get update
+apt-get install varnish
+
+sudo varnishd -f /etc/varnish/default.vcl -s malloc,1G -T 127.0.0.1:2000 -a 0.0.0.0:90

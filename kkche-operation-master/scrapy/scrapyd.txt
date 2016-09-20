@@ -1,0 +1,53 @@
+所有操作以root权限执行
+
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 627220E7
+echo 'deb http://archive.scrapy.org/ubuntu scrapy main' | sudo tee /etc/apt/sources.list.d/scrapy.list
+apt-get update
+apt-get install scrapy-0.22
+apt-get install scrapyd
+apt-get install scrapyd-deploy
+
+iptables -I INPUT -i eth0 -p tcp --dport 6800 -j DROP #不允许外部访问scrapyd
+
+下面配置nginx通过basic auth访问scrapyd服务：
+apt-get install apache2-utils
+htpasswd -c scrapyd.htpasswd scrapyd #在看到提示后输入要设置的密码
+mv scrapyd.htpasswd /etc/nginx/
+
+编辑/etc/nginx/sites-available/scrapyd，内容为：
+server {
+    listen 0.0.0.0:80;
+    server_name scrapyd.kkche.org ;
+    access_log /var/log/nginx/scrapyd.log;
+
+    # pass the request to the node.js server with the correct headers and much more can be added, see nginx config options
+    location / {
+      #proxy_set_header X-Real-IP $remote_addr;
+      #proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      #proxy_set_header Host $http_host;
+      #proxy_set_header X-NginX-Proxy true;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; 
+      proxy_set_header Host $http_host; 
+      proxy_redirect off; 
+
+      auth_basic "Restricted";                                #For Basic Auth
+      auth_basic_user_file /etc/nginx/scrapyd.htpasswd;  #For Basic Auth
+
+      proxy_pass http://127.0.0.1:6800;
+    }
+ }
+
+service nginx restart
+
+设置域名：
+编辑 /etc/bind/db.kkche.org，加入一行：
+scrapyd     IN  A   203.195.197.100
+
+rndc reload
+ln -s /etc/nginx/sites-available/scrapyd /etc/nginx/sites-enabled/scrapyd
+
+发布kkcrawler项目
+scrapy deploy scrapyd -p kkcrawler
+
+启动spider
+curl -u scrapyd -p http://scrapyd.kkche.org/schedule.json -d project=kkcrawler -d spider=FEComSpider

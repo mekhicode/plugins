@@ -1,0 +1,17 @@
+
+sudo mkdir /opt/leiningen/bin
+sudo chown -R user:root /opt/leiningen
+cd /opt/leiningen/bin
+wget https://raw.github.com/technomancy/leiningen/stable/bin/lein -O lein
+sudo chmod u+x lein
+
+sudo vi /etc/profile.d/lein.sh
+export LEIN_HOME=/opt/leiningen
+export PATH=$LEIN_HOME/bin:$PATH
+
+lein repl
+lein new my-stuff
+lein deps
+lein compile
+lein uberjar
+lein run -m my.namespace

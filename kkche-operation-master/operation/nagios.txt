@@ -1,0 +1,13 @@
+
+sudo apt-get install nagios3 nagios-nrpe-plugin
+sudo htpasswd /etc/nagios3/htpasswd.users nagiosadmin
+
+sudo apt-get install nagios-nrpe-server
+
+sudo service nagios3 restart
+
+http://cdh4-yarn-host-1.quanqiuwwang.com/nagios3
+username:nagiosadmin password:nagiosadmin
+
+https://help.ubuntu.com/12.04/serverguide/nagios.html
+

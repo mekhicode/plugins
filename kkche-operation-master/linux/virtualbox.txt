@@ -1,0 +1,30 @@
+
+sudo vi /etc/apt/sources.list
+deb http://download.virtualbox.org/virtualbox/debian precise contrib
+
+wget -q http://download.virtualbox.org/virtualbox/debian/oracle_vbox.asc -O- | sudo apt-key add -
+
+sudo apt-get update
+sudo apt-get install virtualbox-4.2
+
+sudo apt-get install dkms
+
+#when experiencing "The following signatures were invalid: BADSIG"
+sudo apt-get clean
+sudo rm /var/lib/apt/lists/*
+sudo rm /var/lib/apt/lists/partial/*
+
+sudo gpasswd -a user vboxsf
+ls /media
+
+sudo groupadd vboxusers
+sudo usermod -a -G vboxusers user
+cat /etc/group
+groups
+
+#bridge
+ipv4 192.168.x.x
+mask 255.255.255.0
+gateway 192.168.1.1
+dns 210.22.70.3 8.8.8.8
+

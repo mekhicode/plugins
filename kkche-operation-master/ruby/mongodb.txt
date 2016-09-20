@@ -1,0 +1,110 @@
+
+require 'mongo'
+@conn = Mongo::Connection.new("192.168.1.112", 27017)
+@db = @conn['sample']
+@coll = @db['users']
+@coll.remove
+100000.times do |i|
+@coll.insert({'name' => "user" + rand(100).to_s, 'age' => Random.rand(100)})
+end
+@coll.find.each { |doc| puts doc.inspect }
+@coll.count
+@coll.find.first
+{"_id"=>BSON::ObjectId('4f54508543f1e53f75000001'), "name"=>"user82", "score"=>3}
+
+gem 'mongoid'
+gem 'bson_ext'
+
+rails g mongoid:config
+
+vi config/environment.rb
+require 'yaml'
+YAML::ENGINE.yamler= 'syck'
+
+rails g scaffold post title:string content:text
+
+#/app/models/post.rb
+class Post 
+  include Mongoid::Document 
+  include Mongoid::MultiParameterAttributes
+  field :title 
+  field :content 
+  field :published_on, :type => Date 
+  validates_presence_of :title, :content
+  embeds_many :comments 
+end
+
+#/app/views/posts/_form.html.erb
+ <div class="field"> 
+   <%= f.label :published_on %><br /> 
+   <%= f.date_select :published_on %> 
+ </div> 
+
+#/app/views/posts/show.html.erb
+<p> 
+  <b>Published:</b> 
+  <%= @post.published_on %> 
+</p> 
+
+rails g model comment user_id:string content:text
+
+#/app/models/comment.rb
+class Comment 
+  include Mongoid::Document 
+  field :user_id 
+  field :content 
+  embedded_in :post, :inverse_of => :comments 
+end 
+
+#/config/routes.rb
+  resources :posts do 
+    resources :comments 
+  end
+
+rails g controller comments
+
+#/app/controllers/comments_controller.rb
+CommentsController < ApplicationController 
+  def create 
+    @post = Post.find(params[:post_id]) 
+    @comment = @post.comments.create!(params[:comment]) 
+    redirect_to @post, :notice => "Comment created!"   
+  end 
+end 
+
+#/app/views/posts/show.html.erb
+<p>
+<b>User:</b>
+<%= @post.user.name %> (<%= @post.user.email %>)
+</p>
+
+<% if @post.comments.size > 0 %> 
+<h2>Comments</h2> 
+<% for comment in @post.comments %> 
+<h3><%= comment.user_id %>
+<p><%= comment.content %></p> 
+<% end %> 
+<% end %>
+
+<h2>New Comment</h2>
+<%= form_for [@post, Comment.new] do |f| %> 
+<p> <%= f.label :user_id %> <%= f.collection_select :user_id, User.all, :id, :name %> </p> 
+<p><%= f.text_area :content, :rows => 10 %></p> 
+<p><%= f.submit %></p> 
+<% end %>
+
+
+#/app/models/user.rb
+  references_many :posts 
+
+#/app/models/post.rb
+  referenced_in :user 
+
+#/app/views/posts/_form.html.erb
+<div class="field"> 
+  <%= f.label :user_id %><br /> 
+  <%= f.collection_select :user_id, User.all, :id, :name %> 
+</div> 
+
+
+

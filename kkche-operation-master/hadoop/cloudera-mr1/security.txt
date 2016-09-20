@@ -1,0 +1,478 @@
+
+#hadoop
+kadmin.local: addprinc HTTP/<host-fqdn>@<REALM>
+kadmin.local: addprinc hdfs/<host-fqdn>@<REALM>
+kadmin.local: addprinc mapred/<host-fqdn>@<REALM>
+
+kadmin.local: xst -norandkey -k /etc/hadoop/conf/http.keytab HTTP/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/hadoop/conf/hdfs.keytab hdfs/<host-fqdn>@<REALM> HTTP/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/hadoop/conf/mapred.keytab mapred/<host-fqdn>@<REALM> HTTP/<host-fqdn>@<REALM>
+
+kadmin.local: modprinc -maxrenewlife 7days HTTP/<host-fqdn>@<REALM>
+kadmin.local: modprinc -maxrenewlife 7days hdfs/<host-fqdn>@<REALM>
+kadmin.local: modprinc -maxrenewlife 7days mapred/<host-fqdn>@<REALM>
+
+sudo chown hdfs:root /etc/hadoop/conf/http.keytab
+sudo chown hdfs:root /etc/hadoop/conf/hdfs.keytab
+sudo chown mapred:root /etc/hadoop/conf/mapred.keytab
+sudo chmod 0600 /etc/hadoop/conf/*.keytab
+
+sudo -u hdfs kinit -R -k -t /etc/hadoop/conf/http.keytab HTTP/<host-fqdn>@<REALM>
+sudo -u hdfs kinit -R -k -t /etc/hadoop/conf/hdfs.keytab hdfs/<host-fqdn>@<REALM>
+sudo -u mapred kinit -R -k -t /etc/hadoop/conf/mapred.keytab mapred/<host-fqdn>@<REALM>
+
+sudo -u hdfs klist -e -k -t /etc/hadoop/conf/http.keytab
+sudo -u hdfs klist -e -k -t /etc/hadoop/conf/hdfs.keytab
+sudo -u mapred klist -e -k -t /etc/hadoop/conf/mapred.keytab
+
+sudo -u hdfs hadoop fs -chown mapred:hadoop /tmp/hadoop-mapred/mapred/system
+sudo -u hdfs hadoop fs -chmod -R 700 /tmp/hadoop-mapred/mapred/system
+sudo -u hdfs hadoop fs -chown hdfs:hadoop /
+sudo -u hdfs hadoop fs -chmod 755 /
+
+for x in `cd /etc/init.d ; ls hadoop-*` ; do sudo service $x stop ; done
+
+sudo vi /etc/hadoop/conf/core-site.xml
+<property>
+  <name>hadoop.security.authentication</name>
+  <value>kerberos</value>
+</property>
+<property>
+  <name>hadoop.security.authorization</name>
+  <value>true</value>
+</property>
+
+sudo vi /etc/hadoop/conf/hdfs-site.xml
+<property>
+  <name>dfs.block.access.token.enable</name>
+  <value>true</value>
+</property>
+<property>
+  <name>dfs.namenode.keytab.file</name>
+  <value>/etc/hadoop/conf/hdfs.keytab</value>
+</property>
+<property>
+  <name>dfs.namenode.kerberos.principal</name>
+  <value>hdfs/_HOST@<REALM></value>
+</property>
+<property>
+  <name>dfs.namenode.kerberos.internal.spnego.principal</name>
+  <value>HTTP/_HOST@<REALM></value>
+</property>
+<property>
+  <name>dfs.secondary.namenode.keytab.file</name>
+  <value>/etc/hadoop/conf/hdfs.keytab</value>
+</property>
+<property>
+  <name>dfs.secondary.namenode.kerberos.principal</name>
+  <value>hdfs/_HOST@<REALM></value>
+</property>
+<property>
+  <name>dfs.secondary.namenode.kerberos.internal.spnego.principal</name>
+  <value>HTTP/_HOST@<REALM></value>
+</property>
+<property>
+  <name>dfs.datanode.data.dir.perm</name>
+  <value>700</value> 
+</property>
+<property>
+  <name>dfs.datanode.address</name>
+  <value>0.0.0.0:1004</value>
+</property>
+<property>
+  <name>dfs.datanode.http.address</name>
+  <value>0.0.0.0:1006</value>
+</property>
+<property>
+  <name>dfs.datanode.keytab.file</name>
+  <value>/etc/hadoop/conf/hdfs.keytab</value>
+</property>
+<property>
+  <name>dfs.datanode.kerberos.principal</name>
+  <value>hdfs/_HOST@<REALM></value>
+</property>
+<property>
+  <name>dfs.web.authentication.kerberos.principal</name>
+  <value>HTTP/_HOST@<REALM></value>
+</property>
+<property>
+  <name>dfs.web.authentication.kerberos.keytab</name>
+  <value>/etc/hadoop/conf/http.keytab</value>
+</property>
+
+sudo vi /etc/default/hadoop-hdfs-datanode
+export HADOOP_SECURE_DN_USER=hdfs
+export HADOOP_SECURE_DN_PID_DIR=/var/lib/hadoop-hdfs
+export HADOOP_SECURE_DN_LOG_DIR=/var/log/hadoop-hdfs
+export JSVC_HOME=/usr/lib/bigtop-utils/
+
+sudo service hadoop-hdfs-namenode restart
+sudo service hadoop-hdfs-secondarynamenode restart
+sudo service hadoop-hdfs-datanode restart
+sudo service hadoop-httpfs restart
+
+tail -f -n 100 /var/log/hadoop-hdfs/hadoop-hdfs-namenode-<hostname>.log
+
+http://<namenode-fqdn>:50070/
+
+hadoop fs -ls /
+
+sudo -u hdfs kinit -k -t /etc/hadoop/conf/hdfs.keytab hdfs/<host-fqdn>
+sudo -u hdfs hadoop fs -chmod -R 1777 /tmp
+
+sudo vi /etc/hadoop/conf/mapred-site.xml
+<property>
+  <name>mapreduce.jobtracker.kerberos.principal</name>
+  <value>mapred/_HOST@<REALM></value>
+</property>
+<property>
+  <name>mapreduce.jobtracker.keytab.file</name>
+  <value>/etc/hadoop/conf/mapred.keytab</value>
+</property>
+<property>
+  <name>mapreduce.tasktracker.kerberos.principal</name>
+  <value>mapred/_HOST@<REALM></value>
+</property>
+<property>
+  <name>mapreduce.tasktracker.keytab.file</name>
+  <value>/etc/hadoop/conf/mapred.keytab</value>
+</property>
+<property>
+  <name>mapred.task.tracker.task-controller</name>
+  <value>org.apache.hadoop.mapred.LinuxTaskController</value>
+</property>
+<property>
+  <name>mapreduce.tasktracker.group</name>
+  <value>mapred</value>
+</property>
+
+sudo vi /etc/hadoop/conf/taskcontroller.cfg
+hadoop.log.dir=/var/log/hadoop-0.20-mapreduce
+mapreduce.tasktracker.group=mapred
+banned.users=mapred
+min.user.id=0
+
+sudo service hadoop-0.20-mapreduce-jobtracker restart
+sudo service hadoop-0.20-mapreduce-tasktracker restart
+
+#zookeeper server
+kadmin.local: addprinc zookeeper/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/zookeeper/conf/zookeeper.keytab zookeeper/<host-fqdn>@<REALM>
+
+sudo chmod 0600 /etc/zookeeper/conf/zookeeper.keytab
+sudo kinit -k -t /etc/zookeeper/conf/zookeeper.keytab zookeeper/<host-fqdn>@<REALM>
+
+sudo vi /etc/zookeeper/conf/zoo.cfg
+authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
+jaasLoginRenew=3600000
+
+sudo vi /etc/zookeeper/conf/jaas.conf
+Server {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true
+  keyTab="/etc/zookeeper/conf/zookeeper.keytab"
+  storeKey=true
+  useTicketCache=false
+  principal="zookeeper/<host-fqdn>@<REALM>";
+};
+
+sudo vi /etc/zookeeper/conf/java.env
+export JVMFLAGS="-Djava.security.auth.login.config=/etc/zookeeper/conf/jaas.conf"
+
+sudo bash -c 'echo "" > /var/log/zookeeper/zookeeper.log'
+sudo service zookeeper-server restart
+tail -n 100 /var/log/zookeeper/zookeeper.log
+
+#zookeeper client
+kadmin.local: addprinc zkcli/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/zookeeper/conf/zkcli.keytab zkcli/<host-fqdn>@<REALM>
+
+sudo chmod 0600 /etc/zookeeper/conf/zkcli.keytab
+sudo kinit -k -t /etc/zookeeper/conf/zkcli.keytab zkcli/<host-fqdn>@<REALM>
+
+sudo vi /etc/zookeeper/conf/jaas.conf
+Client {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true
+  keyTab="/etc/zookeeper/conf/zkcli.keytab"
+  storeKey=true
+  useTicketCache=false
+  principal="zkcli/<host-fqdn>@<REALM>";
+};
+
+sudo vi /etc/zookeeper/conf/java.env
+export JVMFLAGS="-Djava.security.auth.login.config=/etc/zookeeper/conf/jaas.conf"
+
+zookeeper-client -server <zk-host>:<zk-port>
+] create /<node-name> <data> sasl:zkcli@<host-fqdn>@<REALM>:cdwra
+] getAcl /<node-name>
+
+#hbase
+kadmin.local: addprinc hbase/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/hbase/conf/hbase.keytab hbase/<host-fqdn>@<REALM>
+
+sudo chown hbase:hbase /etc/hbase/conf/hbase.keytab
+sudo chmod 0600 /etc/hbase/conf/hbase.keytab
+sudo kinit -k -t /etc/hbase/conf/hbase.keytab hbase/<host-fqdn>@<REALM>
+
+sudo vi /etc/hbase/conf/hbase-site.xml
+<property>
+    <name>hbase.security.authentication</name>
+    <value>kerberos</value>
+</property>
+<property>
+    <name>hbase.rpc.engine</name>
+    <value>org.apache.hadoop.hbase.ipc.SecureRpcEngine</value>
+</property>
+<property>
+    <name>hbase.regionserver.kerberos.principal</name>
+    <value>hbase/_HOST@<REALM></value>
+</property>
+<property>
+    <name>hbase.regionserver.keytab.file</name>
+    <value>/etc/hbase/conf/hbase.keytab</value>
+</property>
+<property>
+    <name>hbase.master.kerberos.principal</name>
+    <value>hbase/_HOST@<REALM></value>
+</property>
+<property>
+    <name>hbase.master.keytab.file</name>
+    <value>/etc/hbase/conf/hbase.keytab</value>
+</property>
+<property>
+    <name>hbase.security.authorization</name>
+    <value>true</value>
+</property>
+<property>
+    <name>hbase.coprocessor.master.classes</name>
+    <value>org.apache.hadoop.hbase.security.access.AccessController</value>
+</property>
+<property>
+    <name>hbase.coprocessor.region.classes</name>
+    <value>org.apache.hadoop.hbase.security.token.TokenProvider,org.apache.hadoop.hbase.security.access.AccessController</value>
+</property>
+
+sudo vi /etc/hbase/conf/zk-jaas.conf
+Client {
+  com.sun.security.auth.module.Krb5LoginModule required
+  useKeyTab=true
+  useTicketCache=false
+  keyTab="/etc/hbase/conf/hbase.keytab"
+  principal="hbase/<host-fqdn>@<REALM>";
+};
+
+sudo vi /etc/hbase/conf/hbase-env.sh
+export HBASE_OPTS="$HBASE_OPTS -Djava.security.auth.login.config=/etc/hbase/conf/zk-jaas.conf"
+export HBASE_MANAGES_ZK=false
+
+sudo vi /etc/zookeeper/conf/zoo.cfg
+kerberos.removeHostFromPrincipal=true
+kerberos.removeRealmFromPrincipal=true
+
+sudo service zookeeper-server restart
+sudo service hbase-master restart
+sudo service hbase-regionserver restart
+
+tail -f -n 100 /var/log/hbase/hbase-hbase-master-<hostname>.log
+tail -f -n 100 /var/log/hbase/hbase-hbase-regionserver-<hostname>.log
+
+hbase> grant 'bobsmith', 'RWXCA'
+hbase> grant 'bobsmith', 'RW', 't1', 'f1', 'col1'
+hbase> user_permission 't1'
+
+#hive
+kadmin.local: addprinc hive/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/hive/conf/hive.keytab hive/<host-fqdn>@<REALM>
+
+sudo chown hive:hive /etc/hive/conf/hive.keytab
+sudo chmod 0600 /etc/hive/conf/hive.keytab
+sudo kinit -k -t /etc/hive/conf/hive.keytab hive/<host-fqdn>@<REALM>
+
+sudo vi /etc/hive/conf/hive-site.xml
+<property>
+  <name>hive.server2.enable.impersonation</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hive.server2.authentication</name>
+  <value>KERBEROS</value>
+</property>
+<property>
+  <name>hive.server2.authentication.kerberos.principal</name>
+  <value>hive/_HOST@<REALM></value>
+</property>
+<property>
+  <name>hive.server2.authentication.kerberos.keytab</name>
+  <value>/etc/hive/conf/hive.keytab</value>
+</property>
+<property>
+  <name>hive.metastore.sasl.enabled</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hive.metastore.kerberos.keytab.file</name>
+  <value>/etc/hive/conf/hive.keytab</value>
+</property>
+<property>
+  <name>hive.metastore.kerberos.principal</name>
+  <value>hive/_HOST@<REALM></value>
+</property>
+
+sudo vi /etc/hadoop/conf/core-site.xml
+<property>
+    <name>hadoop.proxyuser.hive.hosts</name>
+    <value>*</value>
+</property>
+<property>
+    <name>hadoop.proxyuser.hive.groups</name>
+    <value>*</value>
+</property>
+
+sudo -u hdfs hadoop fs -chmod -R 1777 /user/hive/warehouse
+
+sudo service hive-metastore restart
+sudo service hive-server2 restart
+
+tail -n 100 /var/log/hive/hive-server2.log
+tail -n 100 /var/log/hive/hive-metastore.log
+
+beeline
+> !connect jdbc:hive2://<hive-server2-host>:10000/default;principal=hive/<hive-server2-host>@<REALM> <username> <password>
+
+env HIVE_OPTS="-hiveconf hbase.security.authentication=kerberos -hiveconf hbase.rpc.engine=org.apache.hadoop.hbase.ipc.SecureRpcEngine -hiveconf hbase.master.kerberos.principal=hbase/_HOST@<REALM> -hiveconf hbase.regionserver.kerberos.principal=hbase/_HOST@<REALM> -hiveconf hbase.zookeeper.quorum=<zk-server1>,<zk-server2>" hive
+
+#hcatalog
+sudo cp /etc/hadoop/conf/http.keytab /etc/webhcat/conf/http.keytab
+sudo chmod 400 /etc/webhcat/conf/http.keytab
+sudo kinit -k -t /etc/webhcat/conf/http.keytab HTTP/<host-fqdn>@<REALM>
+
+sudo vi /etc/webhcat/conf/webhcat-default.xml
+<property>
+    <name>templeton.kerberos.secret</name>
+    <value>SuPerS3cr3tV@lue!</value>
+</property>
+<property>
+    <name>templeton.kerberos.keytab</name>
+    <value>/etc/webhcat/conf/http.keytab</value>
+</property>
+<property>
+    <name>templeton.kerberos.principal</name>
+    <value>HTTP/<host-fqdn>@<REALM></value>
+</property>
+
+sudo vi /etc/hadoop/conf/core-site.xml
+<property>
+    <name>hadoop.proxyuser.HTTP.hosts</name>
+    <value>*</value>
+</property>
+<property>
+    <name>hadoop.proxyuser.HTTP.groups</name>
+    <value>*</value>
+</property>
+
+sudo service webhcat-server restart
+
+tail -n 100 /var/log/hcatalog/webhcat.log
+
+curl --negotiate -i -u : 'http://<webhcat-host>:50111/templeton/v1/ddl/database'
+
+#impala
+kadmin.local: addprinc impala/<host-fqdn>@<REALM>
+kadmin.local: xst -norandkey -k /etc/impala/conf/impala.keytab impala/<host-fqdn>@<REALM> HTTP/<host-fqdn>@<REALM>
+kadmin.local: modprinc -maxrenewlife 7days impala/<host-fqdn>@<REALM>
+
+sudo chown impala:impala /etc/impala/conf/impala.keytab
+sudo chmod 400 /etc/impala/conf/impala.keytab
+
+sudo kinit -R -k -t /etc/hadoop/conf/http.keytab HTTP/<host-fqdn>@<REALM>
+
+sudo vi /etc/default/impala
+IMPALA_STATE_STORE_ARGS=" \
+  -kerberos_reinit_interval=60
+  -kerberos_ticket_life=36000
+  -maxrenewlife 7days
+  -principal=impala/<host-fqdn>@<REALM>
+  -keytab_file=/etc/impala/conf/impala.keytab"
+IMPALA_SERVER_ARGS=" \
+  -kerberos_reinit_interval=60
+  -kerberos_ticket_life=36000
+  -maxrenewlife 7days
+  -principal=impala/<host-fqdn>@<REALM>
+  -keytab_file=/etc/impala/conf/impala.keytab"
+
+impalad --principal --keytab-file
+statestored --principal --keytab-file
+impala-shell -k
+
+#sentry
+sudo apt-get install sentry
+
+sudo -u hdfs kinit -R -k -t /etc/hadoop/conf/hdfs.keytab hdfs/<host-fqdn>@<REALM>
+sudo -u hdfs hadoop fs -chmod -R 1777 /user/hive/warehouse
+sudo -u hdfs hadoop fs -chmod -R 1777 /user/hive/warehouse/*
+
+#hdfs://<namenode-fqdn>/sentry/sentry-provider.ini
+[databases]
+#customers = hdfs://<namenode-fqdn>/sentry/sentry-customers.ini
+[groups]
+manager = analyst_role, junior_analyst_role
+analyst = analyst_role
+jranalyst = junior_analyst_role
+customers_admin = customers_admin_role
+admin = admin_role
+[roles]
+analyst_role = server=server1->db=analyst1, \
+    server=server1->db=jranalyst1->table=*->action=select
+    server=server1->uri=hdfs://ha-nn-uri/landing/analyst1
+junior_analyst_role = server=server1->db=jranalyst1, \
+    server=server1->uri=hdfs://ha-nn-uri/landing/jranalyst1
+customers_admin_role = server=server1->db=customers
+admin_role = server=server1
+[users]
+user1 = group1, group2, group3
+user2 = group2, group3
+
+sudo update-alternatives --display sentry-conf
+
+sudo vi /etc/sentry/conf/sentry-site.xml
+<configuration>
+  <property>
+    <name>hive.sentry.provider</name>
+    <value>org.apache.sentry.provider.file.HadoopGroupResourceAuthorizationProvider</value>
+  </property>
+  <property>
+    <name>hive.sentry.provider.resource</name>
+    <value>hdfs://<namenode-fqdn>/sentry/sentry-provider.ini</value>
+  </property>
+  <property>
+    <name>hive.sentry.server</name>
+    <value>server1</value>
+  </property>
+</configuration>
+
+sudo vi /etc/hive/conf/hive-site.xml
+<property>
+  <name>hive.server2.session.hook</name>
+  <value>org.apache.sentry.binding.hive.HiveAuthzBindingSessionHook</value>
+</property>
+<property>
+  <name>hive.sentry.conf.url</name>
+  <value>/etc/sentry/conf/sentry-site.xml</value>
+</property>
+
+sudo vi /etc/default/impala
+IMPALA_SERVER_ARGS=" \
+  -authorization_policy_file=/user/hive/warehouse/auth-policy.ini
+  -server_name=server1"
+
+sudo vi /user/hive/warehouse/auth-policy.ini
+[groups]
+supergroup = all_databases
+[roles]
+read_all_tables = server=server1->db=*->table=*->action=SELECT
+all_tables = server=server1->db=*->table=*
+all_databases = server=server1->db=*
+one_database = server=server1->db=test_db
+entire_server = server=server1
+

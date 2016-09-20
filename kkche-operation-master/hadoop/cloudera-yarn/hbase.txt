@@ -1,0 +1,71 @@
+
+sudo apt-get install hbase
+dpkg -L hbase
+
+sudo ls /etc/security/limits.d/
+
+#regionservers
+cdh4-yarn-host-2.quanqiuwang.com
+cdh4-yarn-host-3.quanqiuwang.com
+cdh4-yarn-host-4.quanqiuwang.com
+
+#hbase-site.xml
+<property>
+  <name>hbase.rest.port</name>
+  <value>60050</value>
+</property>
+
+sudo apt-get install hbase-rest
+sudo /etc/init.d/hadoop-hbase-rest start
+
+#hdfs-site.xml
+<property>
+  <name>dfs.datanode.max.xcievers</name>
+  <value>4096</value>
+</property>
+
+sudo apt-get install hbase-master
+
+#hbase-site.xml
+<property>
+  <name>hbase.cluster.distributed</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hbase.rootdir</name>
+  <value>hdfs://cdh4-yarn-host-1.quanqiuwang.com:8020/hbase</value>
+</property>
+
+#hbase-site.xml
+<property>
+  <name>hbase.zookeeper.quorum</name>
+  <value>cdh4-yarn-host-1.quanqiuwang.com</value>
+</property>
+
+sudo cp /media/sf_tutorial/hadoop/mrv1/hbase-conf/* /etc/hbase/conf.dist/
+
+sudo -u hdfs hadoop fs -mkdir /hbase
+sudo -u hdfs hadoop fs -chown hbase /hbase
+
+sudo service hbase-master restart
+
+sudo apt-get install hbase-regionserver
+sudo service hbase-regionserver restart
+
+#should not be collocated with the NameNode or the JobTracker
+sudo apt-get install hbase-thrift
+sudo service hbase-thrift start
+
+http://cdh4-yarn-host-1:60010/
+
+hbase shell
+> status 'detailed'
+> create 'test', 'data'
+> list
+> put 'test', 'row1', 'data:1', 'value1'
+> put 'test', 'row2', 'data:2', 'value2'
+> scan 'test'
+> get 'test', 'row1'
+> disable 'test'
+> drop 'test'
+

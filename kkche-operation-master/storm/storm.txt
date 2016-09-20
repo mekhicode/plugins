@@ -1,0 +1,66 @@
+
+sudo apt-get install build-essential uuid-dev zlib1g-dev libtool autoconf
+
+cd /tmp
+wget http://download.zeromq.org/zeromq-2.1.7.tar.gz
+tar -xzf zeromq-2.1.7.tar.gz
+cd zeromq-2.1.7
+./configure
+make
+sudo make install
+
+cd /tmp
+git clone https://github.com/nathanmarz/jzmq.git
+tar -xzf jzmq.tar.gz
+cd jzmq
+./autogen.sh
+./configure --with-zeromq=/usr/local/lib
+touch src/classdist_noinst.stamp
+cd src/
+CLASSPATH=.:./.:$CLASSPATH javac -d . org/zeromq/ZMQ.java org/zeromq/App.java org/zeromq/ZMQForwarder.java org/zeromq/EmbeddedLibraryTools.java org/zeromq/ZMQQueue.java org/zeromq/ZMQStreamer.java org/zeromq/ZMQException.java
+cd ..
+make
+sudo make install
+
+http://xumingming.sinaapp.com/twitter-storm-downloads-cn-mirror/
+
+cd /tmp
+scp user@192.168.88.18:/home/user/programming/cloud/storm/release/storm-0.9.0-wip16.zip /tmp/
+unzip storm-0.9.0-wip16.zip
+sudo mv storm-0.9.0-wip16 /opt/
+sudo chown -R `whoami`:root /opt/storm-0.9.0-wip16
+
+sudo vi /opt/storm-0.9.0-wip16/conf/storm.yaml
+storm.local.dir: "/opt/storm-0.9.0-wip16/local"
+storm.zookeeper.servers:
+- "<hostname>"
+nimbus.host: "<hostname>"
+ui.port: 8180
+drpc.servers:
+- "<hostname>"
+
+sudo vi /etc/profile.d/storm.sh
+export STORM_HOME=/opt/storm-0.9.0-wip16
+export PATH=$STORM_HOME/bin:$PATH
+
+sudo $ZOOKEEPER_HOME/bin/zkServer.sh start
+
+sudo $STORM_HOME/bin/storm nimbus &
+sudo $STORM_HOME/bin/storm supervisor &
+sudo $STORM_HOME/bin/storm drpc &
+sudo $STORM_HOME/bin/storm ui &
+
+ps aux | grep storm | awk '{print $2}' | xargs sudo kill -9
+
+http://<hostname>:8180/
+
+git clone https://github.com/nathanmarz/storm-starter.git
+lein deps
+lein compile
+java -cp $(lein classpath) storm.starter.ExclamationTopology
+lein run -m storm.starter.clj.word-count
+mvn -f m2-pom.xml compile exec:java -Dexec.classpathScope=compile -Dexec.mainClass=storm.starter.WordCountTopology
+mvn -f m2-pom.xml package
+storm jar target/storm-starter-0.0.1-SNAPSHOT-jar-with-dependencies.jar storm.starter.WordCountTopology wordcount
+storm kill wordcount
+

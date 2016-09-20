@@ -1,0 +1,193 @@
+
+rails new rails3-mongoid-devise -T -O
+
+rails generate rspec:install
+
+vi spec/spec_helper.rb
+# config.fixture_path = "#{::Rails.root}/spec/fixtures"
+# config.use_transactional_fixtures = true
+require 'database_cleaner'
+config.before(:suite) do
+DatabaseCleaner.strategy = :truncation
+DatabaseCleaner.orm = "mongoid"
+end
+config.before(:each) do
+DatabaseCleaner.clean
+end
+
+vi spec/support/mongoid.rb
+RSpec.configure do |config|
+config.include Mongoid::Matchers
+end
+
+vi spec/factories.rb
+require 'factory_girl'
+Factory.define :user do |u|
+u.name 'Test User'
+u.email 'user@test.com'
+u.password 'please'
+end
+
+vi spec/support/devise.rb
+RSpec.configure do |config|
+config.include Devise::TestHelpers, :type => :controller
+end
+
+rake -T
+rake spec
+
+rails generate cucumber:install --capybara --rspec --skip-database
+
+vi features/support/env.rb
+begin
+DatabaseCleaner.orm = 'mongoid'
+DatabaseCleaner.strategy = :truncation
+rescue NameError
+raise "You need to add database_cleaner to your Gemfile (in the :test group) if you wish to use it."
+end
+
+rake cucumber
+
+rails generate mongoid:config
+
+vi config/environments/development.rb
+# config.action_mailer.raise_delivery_errors = false
+config.action_mailer.default_url_options = { :host => 'localhost:3000' }
+config.action_mailer.delivery_method = :smtp
+config.action_mailer.perform_deliveries = false
+config.action_mailer.raise_delivery_errors = true
+config.action_mailer.default :charset => "utf-8"
+
+vi config/environments/production.rb
+config.action_mailer.default_url_options = { :host => 'yourhost.com' }
+config.action_mailer.delivery_method = :smtp
+config.action_mailer.perform_deliveries = true
+config.action_mailer.raise_delivery_errors = false
+config.action_mailer.default :charset => "utf-8"
+
+rails generate devise:install
+
+rails generate devise User
+
+vi config/initializers/devise.rb
+# config.sign_out_via = :delete
+config.sign_out_via = Rails.env.test? ? :get : :delete
+
+vi config/application.rb
+# config.filter_parameters += [:password]
+config.filter_parameters += [:password, :password_confirmation]
+
+vi app/models/user.rb
+field :name
+validates_presence_of :name
+validates_uniqueness_of :name, :email, :case_sensitive => false
+attr_accessible :name, :email, :password, :password_confirmation, :remember_me
+
+rails generate devise:views
+
+vi app/views/devise/registrations/edit.html.erb
+<div><%= f.label :name %><br />
+<%= f.text_field :name %></div>
+
+vi app/views/devise/registrations/new.html.erb
+<div><%= f.label :name %><br />
+<%= f.text_field :name %></div>
+
+mv public/index.html public/index.html.bak
+
+rails generate controller home index
+
+vi config/routes.rb
+# get "home/index"
+root :to => "home#index"
+
+vi controllers/home_controller.rb
+def index
+@users = User.all
+end
+
+vi app/views/home/index.html.erb
+<h3>Home</h3>
+<% @users.each do |user| %>
+<p>User: <%= user.name %> </p>
+<% end %>
+
+vi db/seeds.rb
+puts 'EMPTY THE MONGODB DATABASE'
+Mongoid.master.collections.reject { |c| c.name =~ /^system/}.each(&:drop)
+puts 'SETTING UP DEFAULT USER LOGIN'
+user = User.create! :name => 'First User', :email => 'user@test.com', :password => 'please', :password_confirmation => 'please'
+puts 'New user created: ' << user.name
+
+rake db:seed
+
+rails generate controller users show
+
+vi controllers/users_controller.rb
+before_filter :authenticate_user!
+def show
+@user = User.find(params[:id])
+end
+
+vi config/routes.rb
+#get "users/show"
+resources :users, :only => :show
+
+vi app/views/users/show.html.erb
+<p>User: <%= @user.name %></p>
+
+vi app/assets/stylesheets/application.css
+ul.hmenu {
+list-style: none; 
+margin: 0 0 2em;
+padding: 0;
+}
+ul.hmenu li {
+display: inline; 
+}
+#flash_notice, #flash_alert {
+padding: 5px 8px;
+margin: 10px 0;
+}
+#flash_notice {
+background-color: #CFC;
+border: solid 1px #6C6;
+}
+#flash_alert {
+background-color: #FCC;
+border: solid 1px #C66;
+}
+
+vi app/views/devise/menu/_login_items.html.erb
+<% if user_signed_in? %>
+<li>
+<%= link_to('Logout', destroy_user_session_path, :method=>'delete') %> 
+</li>
+<% else %>
+<li>
+<%= link_to('Login', new_user_session_path) %> 
+</li>
+<% end %>
+
+vi app/views/devise/menu/_registration_items.html.erb
+<% if user_signed_in? %>
+<li>
+<%= link_to('Edit account', edit_user_registration_path) %>
+</li>
+<% else %>
+<li>
+<%= link_to('Sign up', new_user_registration_path) %>
+</li>
+<% end %>
+
+vi app/views/layouts/application.html.erb
+<body>
+<ul class="hmenu">
+<%= render 'devise/menu/registration_items' %>
+<%= render 'devise/menu/login_items' %>
+</ul>
+<%- flash.each do |name, msg| -%>
+<%= content_tag :div, msg, :id => "flash_#{name}" if msg.is_a?(String) %>
+<%- end -%>
+<%= yield %>
+

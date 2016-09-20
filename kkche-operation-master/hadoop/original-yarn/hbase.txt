@@ -1,0 +1,97 @@
+
+tar xfz hbase-0.98.3-hadoop2-bin.tar.gz
+mv hbase-0.98.3-hadoop2 ~/software
+
+vi ~/.bash_profile
+export HBASE_HOME=$HOME/software/hbase-0.98.3-hadoop2
+export PATH=$HBASE_HOME/bin:$PATH
+
+source ~/.bash_profile
+
+vi $HBASE_HOME/conf/hbase-site.xml
+<configuration>
+  <property>
+    <name>hbase.rootdir</name>
+    <value>hdfs://<host>:8020/hbase</value>
+  </property>
+  <property>
+    <name>hbase.cluster.distributed</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>hbase.zookeeper.quorum</name>
+    <value><host></value>
+  </property>
+   <property>
+      <name>hbase.zookeeper.property.dataDir</name>
+      <value>/data/zookeeper</value>
+    </property>
+  <property>
+    <name>hbase.rest.port</name>
+    <value>60050</value>
+  </property>
+</configuration>
+
+vi $HADOOP_HOME/etc/hadoop/hdfs-site.xml
+<configuration>
+  <property>
+    <name>dfs.support.append</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>dfs.datanode.max.xcievers</name>
+    <value>4096</value>
+  </property>
+</configuration>
+
+vi $HBASE_HOME/conf/hbase-env.sh
+export JAVA_HOME=/usr/lib/jvm/default-java
+export HBASE_MANAGES_ZK=false
+
+vi $HBASE_HOME/conf/regionservers
+<host>
+
+sudo apt-get install ntp
+
+sudo vi /etc/hosts
+#127.0.1.1	<host>
+<ip> <host>
+
+sudo vi /etc/security/limits.conf
+<username>  -  nofile  32768
+<username> soft/hard nproc 32000
+
+sudo vi /etc/pam.d/common-session
+session required  pam_limits.so
+
+$HADOOP_HOME/sbin/stop-all.sh
+$HADOOP_HOME/sbin/start-all.sh
+
+$HADOOP_HOME/bin/hadoop fs -mkdir /hbase
+$HADOOP_HOME/bin/hadoop fs -ls /
+
+$ZOOKEEPER_HOME/bin/zkServer.sh start
+$HBASE_HOME/bin/start-hbase.sh
+
+http://<host>:60010/
+
+$HBASE_HOME/bin/hbase shell
+> status 'detailed'
+> create 't1', 'cf1'
+> list
+> put 't1', 'row1', 'cf1:cq1', 'value1'
+> put 't1', 'row2', 'cf1:cq2', 'value2'
+> scan 't1', {STARTROW => 'row1', STOPROW => 'row2', LIMIT => 10}
+> count 't1'
+> get 't1', 'row1'
+> truncate 't1'
+> disable 't1'
+> alter 't1', 'cf2'
+> enable 't1'
+> disable 't1'
+> drop 't1'
+
+ps aux | grep hbase | awk '{print $2}' | xargs sudo kill -9
+
+http://stackoverflow.com/questions/11068418/get-filtered-rows-in-hbase
+https://blogs.apache.org/hbase/entry/coprocessor_introduction

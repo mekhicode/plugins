@@ -1,0 +1,24 @@
+
+rails generate ckeditor:install
+
+vim Gemfile
+gem "carrierwave-mongoid", :require => 'carrierwave/mongoid'
+gem "mini_magick"
+
+rails generate ckeditor:models --orm=mongoid --backend=carrierwave
+
+vi config/application.rb
+config.autoload_paths += %W(#{config.root}/app/models/ckeditor)
+
+vi app/views/layouts/application.html.erb
+<%= javascript_include_tag "/javascripts/ckeditor/ckeditor.js" %>
+
+vi app/views/posts/_form.html.erb
+<%= form.cktext_area :notes, :toolbar => 'Easy', :width => 800, :height => 600 %>
+
+vi app/controllers/application_controller.rb
+protected
+def ckeditor_filebrowser_scope(options = {})
+super({ :assetable_id => current_user.id, :assetable_type => 'User' }.merge(options))
+end
+

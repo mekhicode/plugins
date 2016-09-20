@@ -1,0 +1,15 @@
+
+rvm system
+
+/usr/bin/ruby -e "$(/usr/bin/curl -fksSL https://raw.github.com/mxcl/homebrew/master/Library/Contributions/install_homebrew.rb)"
+
+rvm default
+brew list
+brew update
+brew install git git-flow
+brew install wget
+brew install aspell --all
+brew install libxml2 imagemagick
+brew update
+brew upgrade
+

@@ -1,0 +1,99 @@
+
+sudo apt-get install autoconf automake libtool zlib1g-dev \
+libpng12-dev libjpeg-dev libtiff4-dev libleptonica-dev
+
+cd /tmp
+wget https://tesseract-ocr.googlecode.com/files/tesseract-ocr-3.02.02.tar.gz
+tar -xzf tesseract-ocr-3.02.02.tar.gz
+cd tesseract-ocr
+./autogen.sh
+./configure
+make
+sudo make install
+sudo ldconfig
+
+sudo vi /etc/profile.d/tesseract.sh
+export TESSDATA_PREFIX=/usr/local/share/
+
+##语言包下载地址##
+https://code.google.com/p/tesseract-ocr/downloads/list
+
+wget https://tesseract-ocr.googlecode.com/files/tesseract-ocr-3.02.eng.tar.gz
+tar -xzf tesseract-ocr-3.02.eng.tar.gz
+
+wget https://tesseract-ocr.googlecode.com/files/tesseract-ocr-3.02.chi_sim.tar.gz
+tar -xzf tesseract-ocr-3.02.chi_sim.tar.gz
+
+sudo cp -r tesseract-ocr/tessdata/* $TESSDATA_PREFIX/tessdata
+
+##自己做识别样本图片upsmart.farrington.exp0.tif##
+tesseract upsmart.farrington.exp0.tif upsmart.farrington.exp0 batch.nochop makebox
+
+##jTessBoxEditor下载地址##
+http://vietocr.sourceforge.net/training.html
+
+java -Xms128m -Xmx512m -jar jTessBoxEditor.jar
+
+vi upsmart.farrington.exp0.box
+1 10 13 29 46 0
+2 36 13 55 46 0
+3 62 13 81 46 0
+4 88 13 107 46 0
+5 114 13 133 46 0
+6 140 13 159 46 0
+7 166 13 185 46 0
+8 192 13 211 46 0
+9 218 13 237 46 0
+0 244 13 263 46 0
+
+tesseract upsmart.farrington.exp0.tif upsmart.farrington.exp0 nobatch box.train
+
+unicharset_extractor upsmart.farrington.exp0.box
+
+vi font_properties
+farrington 0 0 0 0 0
+
+shapeclustering -F font_properties -U unicharset upsmart.farrington.exp0.tr
+
+mftraining -F font_properties -U unicharset -O upsmart.unicharset upsmart.farrington.exp0.tr
+
+shapeclustering -F font_properties -U unicharset upsmart.farrington.exp0.tr
+
+cntraining upsmart.farrington.exp0.tr
+
+mv normproto upsmart.normproto
+mv inttemp upsmart.inttemp
+mv pffmtable upsmart.pffmtable
+mv shapetable upsmart.shapetable
+
+combine_tessdata upsmart.
+
+sudo cp upsmart.traineddata $TESSDATA_PREFIX/tessdata/
+
+tesseract some.tif output -l upsmart -psm 8
+
+#pom.xml
+<dependency>
+  <groupId>net.sourceforge.tess4j</groupId>
+  <artifactId>tess4j</artifactId>
+  <version>1.1</version>
+</dependency>
+<dependency>
+  <groupId>net.java.dev.jna</groupId>
+  <artifactId>jna</artifactId>
+  <version>3.5.1</version>
+</dependency>
+<dependency>
+  <groupId>com.sun.media</groupId>
+  <artifactId>jai_imageio</artifactId>
+  <version>1.1</version>
+</dependency>
+<dependency>
+  <groupId>net.sf</groupId>
+  <artifactId>ghost4j</artifactId>
+  <version>0.3.1</version>
+</dependency>
+
+mvn clean install -Dmaven.test.skip=true -U
+java -cp target/upsmart-ocr-0.5-SNAPSHOT.jar upsmart.ocr.launcher.TesseractLauncher crop-2.tif upsmart
+

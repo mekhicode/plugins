@@ -1,0 +1,94 @@
+
+#block storage service
+
+#on the controller node
+# apt-get install cinder-api cinder-scheduler
+
+# vi /etc/cinder/cinder.conf
+[DEFAULT]
+rpc_backend = cinder.openstack.common.rpc.impl_kombu
+rabbit_host = <controller-host>
+rabbit_port = 5672
+rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://cinder:<cinder_dbpass>@<controller-host>/cinder
+
+mysql -u root -p
+> create database cinder;
+> grant all privileges on cinder.* to 'cinder'@'localhost' identified by '<cinder_dbpass>';
+> grant all privileges on cinder.* to 'cinder'@'%' identified by '<cinder_dbpass>';
+> flush privileges;
+
+# cinder-manage db sync
+
+# keystone user-create --name=cinder --pass=<cinder_pass> --email=cinder@example.com
+# keystone user-role-add --user=cinder --tenant=service --role=admin
+
+# vi /etc/cinder/api-paste.ini
+[filter:authtoken]
+paste.filter_factory=keystoneclient.middleware.auth_token:filter_factory
+auth_host=<controller-host>
+auth_port = 35357
+auth_protocol = http
+admin_tenant_name=service
+admin_user=cinder
+admin_password=<cinder_pass>
+
+# keystone service-create --name=cinder --type=volume --description="Cinder Volume Service"
+
+# keystone endpoint-create \
+  --service-id=<service-id> \
+  --publicurl=http://<controller-host>:8776/v1/%\(tenant_id\)s \
+  --internalurl=http://<controller-host>:8776/v1/%\(tenant_id\)s \
+  --adminurl=http://<controller-host>:8776/v1/%\(tenant_id\)s
+
+# keystone service-create --name=cinderv2 --type=volumev2 \
+  --description="Cinder Volume Service V2"
+
+# keystone endpoint-create \
+  --service-id=<service-id> \
+  --publicurl=http://<controller-host>:8776/v2/%\(tenant_id\)s \
+  --internalurl=http://<controller-host>:8776/v2/%\(tenant_id\)s \
+  --adminurl=http://<controller-host>:8776/v2/%\(tenant_id\)s
+
+# service cinder-scheduler restart
+# service cinder-api restart
+
+#configure a block storage service node
+# apt-get install lvm2
+# fdisk /dev/sdb
+# pvcreate /dev/sdb -ff
+# vgcreate cinder-volumes /dev/sdb
+# vgdisplay
+
+# vi /etc/lvm/lvm.conf
+devices {
+  filter = [ "a/sda1/", "a/sdb/", "r/.*/"]
+}
+
+# apt-get install cinder-volume
+
+# vi /etc/cinder/cinder.conf
+[DEFAULT]
+rpc_backend = cinder.openstack.common.rpc.impl_kombu
+rabbit_host = <controller-host>
+rabbit_port = 5672
+rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://cinder:<cinder_dbpass>@<controller-host>/cinder
+
+# vi /etc/cinder/api-paste.ini
+[filter:authtoken]
+paste.filter_factory=keystoneclient.middleware.auth_token:filter_factory
+auth_host=<controller-host>
+auth_port = 35357
+auth_protocol = http
+admin_tenant_name=service
+admin_user=cinder
+admin_password=<cinder_pass>
+
+# service cinder-volume restart
+# service tgt restart
+

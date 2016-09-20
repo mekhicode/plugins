@@ -1,0 +1,207 @@
+#cloudera 5
+
+curl -s http://archive.cloudera.com/cdh5/ubuntu/precise/amd64/cdh/archive.key | sudo apt-key add -
+
+echo 'deb [arch=amd64] http://archive.cloudera.com/cdh5/ubuntu/precise/amd64/cdh precise-cdh5 contrib
+deb-src http://archive.cloudera.com/cdh5/ubuntu/precise/amd64/cdh precise-cdh5 contrib' | \
+sudo tee /etc/apt/sources.list.d/cloudera.list
+
+#cloudera 4
+sudo vi /etc/apt/sources.list.d/cloudera.list
+deb [arch=amd64] http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh precise-cdh4 contrib
+deb-src http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh precise-cdh4 contrib
+
+curl -s http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh/archive.key | sudo apt-key add -
+
+sudo apt-get update
+
+#Resource Manager
+sudo apt-get install hadoop-yarn-resourcemanager
+
+#NameNode
+sudo apt-get install hadoop-hdfs-namenode
+
+#Secondary NameNode
+sudo apt-get install hadoop-hdfs-secondarynamenode
+
+#All cluster hosts except the Resource Manager
+sudo apt-get install hadoop-yarn-nodemanager hadoop-hdfs-datanode hadoop-mapreduce
+
+#One host
+sudo apt-get install hadoop-mapreduce-historyserver hadoop-yarn-proxyserver
+
+#Client
+sudo apt-get install hadoop-client
+
+sudo apt-get purge xxx
+
+sudo vi /etc/hostname
+
+sudo vi /etc/hosts
+#127.0.0.1	localhost
+#127.0.1.1	<hostname>
+192.168.1.118 user-desktop.quanqiuwang.com user-desktop
+192.168.1.121 cdh4-yarn-host-1.quanqiuwang.com cdh4-yarn-host-1
+192.168.1.57 cdh4-yarn-host-2.quanqiuwang.com cdh4-yarn-host-2
+192.168.1.5 cdh4-yarn-host-3.quanqiuwang.com cdh4-yarn-host-3
+192.168.1.106 cdh4-yarn-host-4.quanqiuwang.com cdh4-yarn-host-4
+
+#core-site.xml
+<property>
+ <name>fs.defaultFS</name>
+ <value>hdfs://cdh4-yarn-host-1.quanqiuwang.com:8020</value>
+</property>
+
+#hdfs-site.xml
+<property>
+ <name>dfs.permissions.superusergroup</name>
+ <value>hadoop</value>
+</property>
+
+#hdfs-site.xml on the NameNode
+<property>
+ <name>dfs.namenode.name.dir</name>
+ <value>/data/1/dfs/nn,/nfsmount/dfs/nn</value>
+</property>
+
+#hdfs-site.xml on each DataNode
+<property>
+ <name>dfs.datanode.data.dir</name>
+ <value>/data/1/dfs/dn,/data/2/dfs/dn,/data/3/dfs/dn</value>
+</property>
+
+#NameNode
+sudo mkdir -p /data/1/dfs/nn /nfsmount/dfs/nn
+sudo chown -R hdfs:hdfs /data/1/dfs/nn /nfsmount/dfs/nn
+sudo chmod 700 /data/1/dfs/nn /nfsmount/dfs/nn
+sudo service hadoop-hdfs-namenode init
+mount -t nfs -o tcp,soft,intr,timeo=10,retrans=10, <server>:<export> <mount_point>
+
+#DataNode
+sudo mkdir -p /data/1/dfs/dn /data/2/dfs/dn /data/3/dfs/dn /data/4/dfs/dn
+sudo chown -R hdfs:hdfs /data/1/dfs/dn /data/2/dfs/dn /data/3/dfs/dn /data/4/dfs/dn
+
+#mapred-site.xml
+<property>
+ <name>mapreduce.framework.name</name>
+ <value>yarn</value>
+</property>
+
+#yarn-site.xml on NodeManager
+<property>
+    <name>yarn.resourcemanager.resource-tracker.address</name>
+    <value>cdh4-yarn-host-1.quanqiuwang.com:8025</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.address</name>
+    <value>cdh4-yarn-host-1.quanqiuwang.com:8040</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.scheduler.address</name>
+    <value>cdh4-yarn-host-1.quanqiuwang.com:8030</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.admin.address</name>
+    <value>cdh4-yarn-host-1.quanqiuwang.com:8141</value>
+  </property>
+  <property>
+    <name>yarn.resourcemanager.webapp.address</name>
+    <value>cdh4-yarn-host-1.quanqiuwang.com:8088</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce.shuffle</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+    <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.local-dirs</name>
+    <value>/data/1/yarn/local,/data/2/yarn/local,/data/3/yarn/local</value>
+  </property>
+  <property>
+    <name>yarn.nodemanager.log-dirs</name>
+    <value>/data/1/yarn/logs,/data/2/yarn/logs,/data/3/yarn/logs</value>
+  </property>
+
+#NodeManager
+sudo mkdir -p /data/1/yarn/local /data/2/yarn/local /data/3/yarn/local /data/4/yarn/local
+sudo mkdir -p /data/1/yarn/logs /data/2/yarn/logs /data/3/yarn/logs /data/4/yarn/logs
+sudo chown -R yarn:yarn /data/1/yarn/local /data/2/yarn/local /data/3/yarn/local /data/4/yarn/local
+sudo chown -R yarn:yarn /data/1/yarn/logs /data/2/yarn/logs /data/3/yarn/logs /data/4/yarn/logs
+
+#mapred-site.xml
+<property>
+ <name>mapreduce.jobhistory.address</name>
+ <value>cdh4-yarn-host-1.quanqiuwang.com:10020</value>
+</property>
+<property>
+ <name>mapreduce.jobhistory.webapp.address</name>
+ <value>cdh4-yarn-host-1.quanqiuwang.com:19888</value>
+</property>
+
+#yarn-site.xml
+<property>
+    <name>yarn.app.mapreduce.am.staging-dir</name>
+    <value>/user</value>
+</property>
+
+#slaves
+cdh4-yarn-host-2.quanqiuwang.com
+cdh4-yarn-host-3.quanqiuwang.com
+cdh4-yarn-host-4.quanqiuwang.com
+
+#hadoop-env.sh
+export HADOOP_MAPRED_HOME=/usr/lib/hadoop-mapreduce
+
+sudo mkdir /etc/hadoop/conf.dist
+sudo cp /media/sf_favorites/notes/hadoop/cluster/hadoop-conf/* /etc/hadoop/conf.dist
+
+sudo update-alternatives --display hadoop-conf
+sudo update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.dist 20
+sudo update-alternatives --set hadoop-conf /etc/hadoop/conf.dist
+sudo update-alternatives --config hadoop-conf
+
+cat /etc/passwd
+cat /etc/group
+groups
+
+sudo usermod -a -G root user
+sudo usermod -a -G hadoop user
+
+sudo chown -R root:hadoop /etc/hadoop/conf.dist
+ll /etc/hadoop/conf.dist/
+
+for service in /etc/init.d/hadoop-*; do sudo $service restart; done
+
+sudo -u hdfs hadoop fs -mkdir /tmp
+sudo -u hdfs hadoop fs -chmod -R 1777 /tmp
+
+sudo -u hdfs hadoop fs -mkdir /user/history
+sudo -u hdfs hadoop fs -chmod -R 1777 /user/history
+
+sudo -u hdfs hadoop fs -mkdir /var/log/hadoop-yarn
+sudo -u hdfs hadoop fs -chown yarn:mapred /var/log/hadoop-yarn
+
+sudo -u hdfs hadoop fs -ls -R /
+
+#NameNode
+sudo -u hdfs hadoop fs -mkdir /user/$USER
+sudo -u hdfs hadoop fs -chown $USER /user/$USER
+
+sudo jps
+http://cdh4-yarn-host-1.quanqiuwang.com:50070/
+http://cdh4-yarn-host-1.quanqiuwang.com:8088/
+
+hadoop fs -mkdir input
+hadoop fs -put /etc/hadoop/conf/*.xml input
+hadoop fs -ls input
+
+hadoop jar /usr/lib/hadoop-mapreduce/hadoop-mapreduce-examples.jar grep input output23 'dfs[a-z.]+'
+
+hadoop fs -ls
+hadoop fs -ls output23
+hadoop fs -cat output23/part-r-00000 | head
+
+hadoop fs -rm -r output*

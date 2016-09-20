@@ -1,0 +1,6 @@
+
+sudo add-apt-repository ppa:mitya57/ppa
+sudo apt-get update && sudo apt-get install retext
+
+sudo add-apt-repository --remove ppa:mitya57/ppa
+

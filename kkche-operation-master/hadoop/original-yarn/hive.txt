@@ -1,0 +1,150 @@
+
+tar xfz hive-0.13.1.tar.gz
+sudo mv hive-0.13.1 /opt
+
+cd /opt/hive-0.13.1/conf/
+sudo mv hive-default.xml.template hive-site.xml
+sudo mv hive-env.sh.template hive-env.sh
+sudo mv hive-exec-log4j.properties.template hive-exec-log4j.properties
+sudo mv hive-log4j.properties.template hive-log4j.properties
+
+sudo vi hive-site.xml
+<property>
+  <name>mapred.job.tracker</name>
+  <value><hostname></value>
+</property>
+<property>
+  <name>hive.metastore.uris</name>
+  <value>thrift://<hostname>:9083</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionURL</name>
+  <value>jdbc:mysql://<hostname>/hive</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionDriverName</name>
+  <value>com.mysql.jdbc.Driver</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionUserName</name>
+  <value>hive</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionPassword</name>
+  <value>hive</value>
+</property>
+<property>
+  <name>datanucleus.autoCreateSchema</name>
+  <value>false</value>
+</property>
+<property>
+  <name>datanucleus.fixedDatastore</name>
+  <value>true</value>
+</property>
+<property>
+  <name>hive.hwi.listen.host</name>
+  <value><hostname></value>
+</property>
+
+sudo vi /etc/profile.d/hive.sh
+export HIVE_HOME=/opt/hive-0.13.1
+export PATH=$HIVE_HOME/bin:$PATH
+
+sudo vi $HIVE_HOME/conf/hive-env.sh
+export HIVE_AUX_JARS_PATH=$HIVE_HOME/lib
+
+sudo apt-get install mysql-client libmysql-java
+dpkg -L libmysql-java
+sudo cp /usr/share/java/mysql-connector-java-5.1.16.jar $HIVE_HOME/lib
+sudo chown -R `whoami`:root /opt/hive-0.13.1
+
+sudo vi /etc/mysql/my.cnf
+#bind-address = 127.0.0.1
+
+sudo service mysql restart
+
+mysql -u root -h <hostname> -p
+> drop user hive@'<hostname>';
+> create user 'hive'@'<hostname>' identified by 'hive';
+> drop database hive;
+> create database hive;
+> use hive;
+> source /opt/hive-0.13.1/scripts/metastore/upgrade/mysql/hive-schema-0.10.0.mysql.sql;
+> grant all privileges on hive.* to 'hive'@'<hostname>' with grant option;
+> flush privileges;
+
+$HADOOP_HOME/bin/hadoop fs -mkdir /tmp
+$HADOOP_HOME/bin/hadoop fs -chmod g+w /tmp
+$HADOOP_HOME/bin/hadoop fs -mkdir /user/hive/warehouse
+$HADOOP_HOME/bin/hadoop fs -chmod g+w /user/hive/warehouse
+
+$HIVE_HOME/bin/hive --hiveconf mapreduce.job.queuename=queue1
+$HIVE_HOME/bin/hive
+> create table user (id string, username string);
+> show tables;
+> describe user;
+> load data inpath '</path/to/some/data>' overwrite into table user;
+> select u.* from user u where u.id like '%1%';
+> alter table user add columns (name string);
+> drop table user;
+
+$HIVE_HOME/bin/hive --service metastore
+# $HIVE_HOME/bin/hive --service hiveserver
+$HIVE_HOME/bin/hiveserver2
+
+$HIVE_HOME/bin/hive --service hwi
+nohup $HIVE_HOME/bin/hive --service hwi > /dev/null 2> /dev/null &
+
+http://<hostname>:9999/hwi/
+
+sudo netstat -nlp | grep 10000
+sudo lsof -i:10000
+
+
+
+# Elasticsearch-hadoop
+## elasticsearch-hive
+
+wget http://download.elasticsearch.org/hadoop/elasticsearch-hadoop-2.0.2.zip
+mv elasticsearch-hadoop-hive-2.0.2.jar ../../apache-hive-0.13.1-bin/lib/
+hadoop fs -put elasticsearch-hadoop-2.0.2/ $HIVE_HOME/lib
+
+#sudo vi $HIVE_HOME/conf/hive-site.xml
+#<property>
+#  <name>hive.aux.jars.path</name>
+#  <value>/HDFSpath/elasticsearch-hadoop.jar</value>
+#  <description>A comma separated list (with no spaces) of the jar files</description>
+#</property>
+
+hive
+>CREATE  EXTERNAL TABLE `src_es`(
+  `key` bigint,
+  `value` string)
+  STORED BY 'org.elasticsearch.hadoop.hive.EsStorageHandler'
+TBLPROPERTIES('es.resource' = 'test/src',
+  'es.mapping.names' = 'key:keys_name , value:value_name');
+
+
+# Mongo-hadoop
+wget https://github.com/mongodb/mongo-hadoop/releases/download/r1.3.0/mongo-hadoop-hive-1.3.0.jar
+cp mongo-hadoop-hive-1.3.0.jar $HIVE_HOME/lib
+wget https://github.com/mongodb/mongo-hadoop/releases/download/r1.3.0/mongo-hadoop-core-1.3.0.jar
+cp mongo-hadoop-core-1.3.0.jar $HIVE_HOME/lib
+wget https://github.com/mongodb/mongo-java-driver/releases/download/r2.12.4/mongo-java-driver-2.12.4.jar
+cp mongo-java-driver-2.12.4.jar $HIVE_HOME/lib
+
+hive
+>CREATE EXTERNAL TABLE vehicle_detail
+(
+  id STRING,
+  engine STRING,
+  vendor STRING,
+  series STRING,
+  level_id STRING,
+  year STRING,
+  model STRING,
+  brand STRING
+)
+STORED BY 'com.mongodb.hadoop.hive.MongoStorageHandler'
+WITH SERDEPROPERTIES('mongo.columns.mapping'='{"id":"_id"}')
+TBLPROPERTIES('mongo.uri'='mongodb://localhost:27017/site_spec.vehicle_spec_detail_filte');

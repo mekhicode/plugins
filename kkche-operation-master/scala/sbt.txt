@@ -1,0 +1,40 @@
+
+tar xzf sbt-0.13.5.tgz
+sudo mv sbt /opt/sbt-0.13.5
+sudo chown -R root:root /opt/sbt-0.13.5/
+sudo chmod -R u+x /opt/sbt-0.13.5/bin/
+
+sudo vi /etc/profile.d/scala.sh
+export SBT_HOME=/opt/sbt-0.13.5
+export PATH=$SBT_HOME/bin:$PATH
+
+source /etc/profile.d/scala.sh
+
+#nexus proxy repository
+http://repo.typesafe.com/typesafe/releases/
+http://repo.typesafe.com/typesafe/snapshots/
+http://repo.typesafe.com/typesafe/ivy-releases/
+http://repo.typesafe.com/typesafe/ivy-snapshots/
+http://repo.scala-sbt.org/scalasbt/sbt-plugin-releases/
+https://oss.sonatype.org/content/repositories/releases
+https://oss.sonatype.org/content/repositories/snapshots
+
+"Akka Repository" at "http://repo.akka.io/releases/"
+"clojars.org" at "http://clojars.org/repo"
+
+mkdir -p ~/.sbt/0.13/plugins
+
+vi ~/.sbt/repositories
+[repositories]
+  local
+  ivy-proxy-releases: http://localhost:8081/nexus/content/groups/public/, [organization]/[module]/(scala_[scalaVersion]/)(sbt_[sbtVersion]/)[revision]/[type]s/[artifact](-[classifier]).[ext]
+  maven-proxy-releases: http://localhost:8081/nexus/content/groups/public/
+
+vi ~/.sbt/0.13/plugins/plugins.sbt
+addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.5.0")
+
+sudo $SBT_HOME/bin/sbt
+sudo ls -al /root/.sbt/boot/
+sudo ls -al /root/.ivy2/cache/
+
+sbt eclipse

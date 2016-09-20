@@ -1,0 +1,59 @@
+
+tar xvf apache-flume-1.4.0-bin.tar.gz
+sudo mv apache-flume-1.4.0-bin /opt/flume-1.4.0
+sudo chown -R `whoami`:root /opt/flume-1.4.0
+
+cd /opt/flume-1.4.0
+sudo cp conf/flume-env.sh.template conf/flume-env.sh
+
+sudo vi conf/flume-conf.properties
+agent.sources = tailSrc
+agent.channels = memoryChannel
+agent.sinks = loggerSink esSink
+
+agent.sources.tailSrc.type = exec
+agent.sources.tailSrc.command = tail -f </path/to/file>
+agent.sources.tailSrc.channels = memoryChannel
+
+agent.channels.memoryChannel.type = memory
+agent.channels.memoryChannel.capacity = 10000
+agent.channels.memoryChannel.transactionCapacity = 1000
+
+agent.sinks.loggerSink.type = logger
+agent.sinks.loggerSink.channel = memoryChannel
+
+agent.sinks.avroSink.type = avro
+agent.sinks.avroSink.channel = memoryChannel
+agent.sinks.avroSink.hostname = <avro-server-host>
+agent.sinks.avroSink.port = <avro-server-port>
+
+agent.sinks.esSink.type = org.apache.flume.sink.elasticsearch.ElasticSearchSink
+agent.sinks.esSink.hostNames = <es-host>:9300
+agent.sinks.esSink.indexName = <index-name>
+agent.sinks.esSink.indexType = <index-type>
+agent.sinks.esSink.clusterName = elasticsearch
+agent.sinks.esSink.batchSize = 100
+agent.sinks.esSink.ttl = 86400000
+agent.sinks.esSink.serializer = org.apache.flume.sink.elasticsearch.ElasticSearchLogStashEventSerializer
+agent.sinks.esSink.channel = memoryChannel
+
+sudo vi /etc/profile.d/flume.sh
+export FLUME_HOME=/opt/flume-1.4.0
+export PATH=$FLUME_HOME/bin:$PATH
+
+sudo mkdir $FLUME_HOME/lib_bak
+sudo mv $FLUME_HOME/lib/lucene*-4.3.0.jar $FLUME_HOME/lib_bak
+sudo cp $ES_HOME/lib/lucene*-4.4.0.jar $FLUME_HOME/lib
+sudo cp $ES_HOME/lib/elasticsearch-0.90.5.jar $FLUME_HOME/lib
+
+$FLUME_HOME/bin/flume-ng agent -n agent \
+-c $FLUME_HOME/conf/ \
+-f $FLUME_HOME/conf/flume-conf.properties \
+-Dflume.root.logger=DEBUG,console
+
+echo 'some text' >> </path/to/file>
+
+http://<es-host>:9200/<index-name-yyyy-MM-dd>/_mapping
+http://<es-host>:9200/<index-name-yyyy-MM-dd>/_stats
+http://<es-host>:9200/<index-name-yyyy-MM-dd>/_search?size=50
+

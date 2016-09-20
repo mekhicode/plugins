@@ -1,0 +1,14 @@
+
+vi bin/idea64.vmoptions
+-Xms256m
+-Xmx4096m
+
+sudo vi /usr/share/applications/idea.desktop
+[Desktop Entry]
+Name=IDEA
+Exec=/home/ubuntu/software/idea/bin/idea.sh
+Icon=/home/ubuntu/software/idea/bin/idea.png
+Type=Application
+StartupNotify=true
+Terminal=false
+

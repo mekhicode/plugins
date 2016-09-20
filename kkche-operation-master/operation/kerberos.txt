@@ -1,0 +1,268 @@
+
+#kerberos server
+sudo vi /etc/hosts
+<ip> krb01.example.com krb01
+
+sudo apt-get install krb5-kdc krb5-admin-server
+sudo krb5_newrealm
+
+sudo dpkg-reconfigure krb5-kdc
+
+sudo vi /etc/krb5.conf
+[libdefaults]
+    default_realm = EXAMPLE.COM
+[realms]
+    EXAMPLE.COM = {
+        kdc = krb01.example.com
+        admin_server = krb01.example.com
+        default_domain = example.com
+    }
+[domain_realm]
+    .example.com = EXAMPLE.COM
+    example.com = EXAMPLE.COM
+
+sudo vi /etc/krb5kdc/kadm5.acl
+*/admin *
+
+sudo vi /etc/krb5kdc/kdc.conf
+[logging]
+    kdc = FILE:/var/log/krb5kdc.log
+[kdcdefaults]
+    default_realm = EXAMPLE.COM
+[realms]
+    KRB01.EXAMPLE.COM = {
+    ...
+    }
+
+sudo rm /var/lib/krb5kdc/principal
+
+cd /tmp
+unzip UnlimitedJCEPolicyJDK7.zip
+sudo cp UnlimitedJCEPolicy/*.jar $JAVA_HOME/jre/lib/security
+
+sudo vi /etc/krb5.conf
+[libdefaults]
+    default_tkt_enctypes = aes256-cts aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 aes128-cts rc4-hmac des3-cbc-sha1 des-cbc-md5 des-cbc-crc arcfour-hmac arcfour-hmac-md5
+    default_tgt_enctypes = aes256-cts aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 aes128-cts rc4-hmac des3-cbc-sha1 des-cbc-md5 des-cbc-crc arcfour-hmac arcfour-hmac-md5
+    permitted_enctypes   = aes256-cts aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 aes128-cts rc4-hmac des3-cbc-sha1 des-cbc-md5 des-cbc-crc arcfour-hmac arcfour-hmac-md5
+
+sudo vi /etc/krb5.conf
+renew_lifetime
+
+sudo vi /etc/krb5kdc/kdc.conf
+max_renewable_life
+
+sudo /etc/init.d/krb5-kdc restart
+sudo /etc/init.d/krb5-admin-server restart
+
+sudo kadmin.local
+kadmin.local: addprinc <username>/admin
+kadmin.local: quit
+
+kadmin -p <username>/admin
+kadmin: addprinc <username>
+kadmin: listprincs
+kadmin: delprinc <username>
+kadmin: addprinc <service-name>/<krb-server-fqdn>
+kadmin: delprinc <service-name>/<krb-server-fqdn>
+
+tail -f /var/log/auth.log
+
+kinit <username>/admin@<fqdn-realm>
+
+klist
+
+#kerberos client
+sudo apt-get install krb5-user libpam-krb5 libpam-ccreds auth-client-config
+
+sudo dpkg-reconfigure krb5-config
+
+#ldap server
+sudo apt-get install slapd ldap-utils
+
+sudo dpkg-reconfigure slapd
+
+sudo apt-get install libnss-ldapd libpam-ldapd
+#group, passwd, shadow
+
+sudo ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b cn=config dn
+
+vi /tmp/database.ldif
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+add: olcRootDN
+olcRootDN: cn=admin,cn=config
+
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+add: olcRootPW
+olcRootPW: <password>
+
+dn: olcDatabase={0}config,cn=config
+changetype: modify
+delete: olcAccess
+
+sudo ldapadd -Y EXTERNAL -H ldapi:/// -f /tmp/database.ldif
+
+ldapsearch -xLLL -b cn=config -D cn=admin,cn=config -W olcDatabase=hdb olcAccess
+
+sudo ldapsearch -Q -LLL -Y EXTERNAL -H ldapi:/// -b \
+cn=config '(olcDatabase={1}hdb)' olcDbIndex
+
+vi /tmp/user.ldif
+dn: dc=example,dc=com
+objectClass: top
+objectClass: dcObject
+objectclass: organization
+o: example.com
+dc: example
+
+dn: ou=users,dc=example,dc=com
+objectClass: organizationalUnit
+ou: users
+ 
+dn: ou=groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=john,ou=users,dc=example,dc=com
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+uid: john
+sn: Doe
+givenName: John
+cn: John Doe
+displayName: John Doe
+uidNumber: 10000
+gidNumber: 5000
+userPassword: johnldap
+gecos: John Doe
+loginShell: /bin/bash
+homeDirectory: /home/john
+
+sudo ldapadd -x -D cn=admin,dc=example,dc=com -W -f /tmp/user.ldif
+
+ldapsearch -x -LLL -b dc=example,dc=com 'uid=john' cn gidNumber
+
+sudo apt-get install krb5-kdc-ldap
+sudo gzip -d /usr/share/doc/krb5-kdc-ldap/kerberos.schema.gz
+sudo cp /usr/share/doc/krb5-kdc-ldap/kerberos.schema /etc/ldap/schema/
+
+vi /tmp/schema_convert.conf
+include /etc/ldap/schema/core.schema
+include /etc/ldap/schema/collective.schema
+include /etc/ldap/schema/corba.schema
+include /etc/ldap/schema/cosine.schema
+include /etc/ldap/schema/duaconf.schema
+include /etc/ldap/schema/dyngroup.schema
+include /etc/ldap/schema/inetorgperson.schema
+include /etc/ldap/schema/java.schema
+include /etc/ldap/schema/misc.schema
+include /etc/ldap/schema/nis.schema
+include /etc/ldap/schema/openldap.schema
+include /etc/ldap/schema/ppolicy.schema
+include /etc/ldap/schema/kerberos.schema
+
+mkdir /tmp/ldif_output
+
+slapcat -f /tmp/schema_convert.conf -F /tmp/ldif_output -n0 -s \
+"cn={12}kerberos,cn=schema,cn=config" > /tmp/cn=kerberos.ldif
+
+vi /tmp/cn\=kerberos.ldif
+dn: cn=kerberos,cn=schema,cn=config
+cn: kerberos
+#remove following lines
+dn: cn={12}kerberos,cn=schema,cn=config
+cn: {12}kerberos
+structuralObjectClass: ...
+entryUUID: ...
+creatorsName: ...
+createTimestamp: ...
+entryCSN: ...
+modifiersName: ...
+modifyTimestamp: ...
+
+ldapadd -x -D cn=admin,cn=config -W -f /tmp/cn\=kerberos.ldif
+
+vi /tmp/access.ldif
+dn: olcDatabase={1}hdb,cn=config
+add: olcDbIndex
+olcDbIndex: krbPrincipalName eq,pres,sub
+
+dn: olcDatabase={1}hdb,cn=config
+replace: olcAccess
+olcAccess: to attrs=userPassword,shadowLastChange,krbPrincipalKey by
+ dn="cn=admin,dc=example,dc=com" write by anonymous auth by self write by * none
+-
+add: olcAccess
+olcAccess: to dn.base="" by * read
+-
+add: olcAccess
+olcAccess: to * by dn="cn=admin,dc=example,dc=com" write by * read
+
+ldapmodify -x -D cn=admin,cn=config -W -f /tmp/access.ldif
+
+sudo kdb5_ldap_util -D  cn=admin,dc=example,dc=com create -subtrees \
+dc=example,dc=com -r EXAMPLE.COM -s -H ldap://ldap01.example.com
+
+sudo kdb5_ldap_util -D  cn=admin,dc=example,dc=com stashsrvpw -f \
+/etc/krb5kdc/service.keyfile cn=admin,dc=example,dc=com
+
+scp <ldap-server-host>:/etc/ssl/certs/ca.pem /tmp
+sudo cp /tmp/ca.pem /etc/ssl/certs
+
+sudo vi /etc/ldap/ldap.conf
+TLS_CACERT /etc/ssl/certs/cacert.pem
+
+ldapsearch -x -LLL -H ldap:/// -b dc=example,dc=com dn
+
+sudo vi /etc/krb5.conf
+[libdefaults]
+    default_realm = EXAMPLE.COM
+[realms]
+    EXAMPLE.COM = {
+        kdc = krb01.example.com
+        admin_server = krb01.example.com
+        default_domain = example.com
+        database_module = openldap_ldapconf
+    }
+[domain_realm]
+    .example.com = EXAMPLE.COM
+    example.com = EXAMPLE.COM
+[dbdefaults]
+        ldap_kerberos_container_dn = dc=example,dc=com
+[dbmodules]
+        openldap_ldapconf = {
+                db_library = kldap
+                ldap_kdc_dn = "cn=admin,dc=example,dc=com"
+                ldap_kadmind_dn = "cn=admin,dc=example,dc=com"
+                ldap_service_password_file = /etc/krb5kdc/service.keyfile
+                ldap_servers = ldap://ldap01.example.com
+                ldap_conns_per_server = 5
+        }
+
+sudo kadmin.local
+kadmin.local: addprinc -x dn="uid=john,ou=users,dc=example,dc=com" john
+
+sudo service slapd restart
+
+#sasl
+sudo apt-get install sasl2-bin libsasl2-2 libsasl2-modules libsasl2-modules-gssapi-mit
+
+sudo vi /etc/default/saslauthd
+START=yes
+
+sudo kadmin.local
+kadmin.local: addprinc -randkey ldap/<krb-server-fqdn>
+kadmin.local: ktadd -k /etc/krb5.keytab ldap/<krb-server-fqdn>
+
+sudo klist -k
+
+sudo chown root:root /etc/krb5.keytab
+sudo chmod 0700 /etc/krb5.keytab
+
+export KRB5_KTNAME=/etc/krb5.keytab
+
+kinit <username>
+

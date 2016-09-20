@@ -1,0 +1,69 @@
+
+sudo apt-get install hive
+
+sudo apt-get install mysql-client
+dpkg -L libmysql-java
+sudo cp /usr/share/java/mysql-connector-java-5.1.16.jar /usr/lib/hive/lib
+ls /usr/lib/hive/lib
+
+sudo vi /etc/mysql/my.cnf
+#bind-address = 127.0.0.1
+
+sudo service mysql restart
+
+mysql -u root -h localhost -p
+> CREATE DATABASE metastore;
+> USE metastore;
+> SOURCE /usr/lib/hive/scripts/metastore/upgrade/mysql/hive-schema-0.8.0.mysql.sql;
+> CREATE USER 'hive'@'cdh4-yarn-host-1.quanqiuwang.com' IDENTIFIED BY 'hive';
+> GRANT SELECT,INSERT,UPDATE,DELETE ON metastore.* TO 'hive'@'cdh4-yarn-host-1.quanqiuwang.com';
+> REVOKE ALTER,CREATE,DROP,INDEX ON metastore.* FROM 'hive'@'cdh4-yarn-host-1.quanqiuwang.com';
+> FLUSH PRIVILEGES;
+
+sudo vi /etc/hive/conf.dist/hive-site.xml
+<property>
+  <name>mapred.job.tracker</name>
+  <value>cdh4-yarn-host-1.quanqiuwang.com</value>
+</property>
+<property>
+  <name>javax.jdo.option.ConnectionURL</name>
+  <value>jdbc:mysql://cdh4-yarn-host-1.quanqiuwang.com/metastore</value>
+</property> 
+<property>
+  <name>javax.jdo.option.ConnectionDriverName</name>
+  <value>com.mysql.jdbc.Driver</value>
+</property> 
+<property>
+  <name>javax.jdo.option.ConnectionUserName</name>
+  <value>hive</value>
+</property> 
+<property>
+  <name>javax.jdo.option.ConnectionPassword</name>
+  <value>hive</value>
+</property> 
+<property>
+  <name>datanucleus.autoCreateSchema</name>
+  <value>false</value>
+</property> 
+<property>
+  <name>datanucleus.fixedDatastore</name>
+  <value>true</value>
+</property>
+
+#with hbase
+ADD JAR /usr/lib/hive/lib/zookeeper.jar;
+ADD JAR /usr/lib/hive/lib/hbase.jar;
+ADD JAR /usr/lib/hive/lib/hive-hbase-handler-0.8.1-cdh4.0.1.jar
+ADD JAR /usr/lib/hive/lib/guava-r09.jar;
+
+hive
+> CREATE TABLE users (id STRING, username STRING);
+> SHOW TABLES;
+> DESCRIBE users;
+> ALTER TABLE users ADD COLUMNS (name STRING);
+> DROP TABLE users;
+> LOAD DATA INPATH '/sqoop/test/users/part-m-00000' OVERWRITE INTO TABLE users;
+> SELECT u.* FROM users u WHERE u.id like '%1%';
+
+sudo -u hdfs hadoop fs -ls /user/hive/warehouse
+

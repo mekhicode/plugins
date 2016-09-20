@@ -1,0 +1,70 @@
+
+sudo apt-get install hue hue-server
+
+sudo vi /etc/hadoop/conf.empty/hdfs-site.xml
+<property>
+  <name>dfs.webhdfs.enabled</name>
+  <value>true</value>
+</property>
+
+sudo vi /etc/hadoop/conf.empty/core-site.xml
+<property>
+  <name>hadoop.proxyuser.hue.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.hue.groups</name>
+  <value>*</value>
+</property>
+
+sudo vi /etc/hadoop-httpfs/conf.empty/httpfs-site.xml
+<property>
+  <name>httpfs.proxyuser.hue.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>httpfs.proxyuser.hue.groups</name>
+  <value>*</value>
+</property>
+
+sudo vi /etc/hue/hue.ini
+[desktop]
+secret_key=qpbdxoewsqlkhztybvfidtvwekftusgdlofbcfghaswuicmqp
+[hadoop]
+[[hdfs_clusters]]
+[[[default]]]
+fs_defaultfs=hdfs://cdh4-yarn-host-1.quanqiuwang.com:8020
+webhdfs_url=http://cdh4-yarn-host-1.quanqiuwang.com:50070/webhdfs/v1/
+[[yarn_clusters]]
+[[[default]]]
+resourcemanager_host=cdh4-yarn-host-1.quanqiuwang.com
+[liboozie]
+oozie_url=http://cdh4-yarn-host-1.quanqiuwang.com:11000/oozie
+[shell]
+[[shelltypes]]
+[[[flume]]]
+command="/usr/bin/flume-ng shell"
+
+sudo vi /etc/oozie/conf.dist/oozie-site.xml
+<property>
+    <name>oozie.service.ProxyUserService.proxyuser.hue.hosts</name>
+    <value>*</value>
+</property>
+<property>
+    <name>oozie.service.ProxyUserService.proxyuser.hue.groups</name>
+    <value>*</value>
+</property>
+
+sudo vi /etc/hadoop/conf.empty/core-site.xml
+<property>
+  <name>hadoop.tmp.dir</name>
+  <value>/tmp/hadoop-${user.name}${hue.suffix}</value>
+</property>
+
+sudo usermod -a -G hadoop hue
+
+sudo service hue start
+
+http://cdh4-yarn-host-1.quanqiuwang.com:8888/
+username:hue password:hue
+

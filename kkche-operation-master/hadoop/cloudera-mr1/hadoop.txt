@@ -1,0 +1,160 @@
+sudo vi /etc/apt/sources.list.d/cloudera.list
+deb [arch=amd64] http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh precise-cdh4 contrib
+deb-src http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh precise-cdh4 contrib
+
+curl -s http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh/archive.key | sudo apt-key add -
+
+sudo apt-get update
+
+sudo apt-get install hadoop-0.20-mapreduce-jobtracker
+sudo apt-get install hadoop-hdfs-namenode
+sudo apt-get install hadoop-hdfs-secondarynamenode
+sudo apt-get install hadoop-0.20-mapreduce-tasktracker hadoop-hdfs-datanode
+sudo apt-get install hadoop-client
+
+sudo vi /etc/hostname
+
+sudo vi /etc/hosts
+#127.0.1.1    <host>
+<ip> <host-fqdn> <host>
+
+sudo cp -r /etc/hadoop/conf.empty/ /etc/hadoop/conf.dist/
+ls -al /etc/hadoop/conf.dist/
+
+sudo update-alternatives --display hadoop-conf
+sudo update-alternatives --install /etc/hadoop/conf hadoop-conf /etc/hadoop/conf.dist 20
+sudo update-alternatives --set hadoop-conf /etc/hadoop/conf.dist
+sudo update-alternatives --config hadoop-conf
+
+sudo vi /etc/hadoop/conf/core-site.xml
+<property>
+  <name>fs.defaultFS</name>
+  <value>hdfs://<namenode-host>:8020</value>
+</property>
+<property>
+  <name>fs.trash.interval</name>
+  <value>1440</value>
+</property>
+
+sudo vi /etc/hadoop/conf/hdfs-site.xml
+<!--<property>-->
+  <!--<name>dfs.name.dir</name>-->
+  <!--<value>/var/lib/hadoop-hdfs/cache/hdfs/dfs/name</value>-->
+<!--</property>-->
+<property>
+  <name>dfs.namenode.name.dir</name>
+  <value>/data/1/dfs/nn</value>
+</property>
+
+sudo mkdir -p /data/1/dfs/nn
+sudo chown -R hdfs:hdfs /data/1/dfs/nn
+sudo chmod 700 /data/1/dfs/nn
+sudo -u hdfs hadoop namenode -format
+
+sudo vi /etc/hadoop/conf/hdfs-site.xml 
+<property>
+  <name>dfs.datanode.data.dir</name>
+  <value>/data/1/dfs/dn,/data/2/dfs/dn,/data/3/dfs/dn</value>
+</property>
+
+sudo mkdir -p /data/1/dfs/dn /data/2/dfs/dn /data/3/dfs/dn
+sudo chown -R hdfs:hdfs /data/1/dfs/dn /data/2/dfs/dn /data/3/dfs/dn
+
+sudo vi /etc/hadoop/conf/mapred-site.xml
+<property>
+  <name>mapred.job.tracker</name>
+  <value><jobtracker-host>:8021</value>
+</property>
+<property>
+  <name>mapred.local.dir</name>
+  <value>/data/1/mapred/local,/data/2/mapred/local,/data/3/mapred/local</value>
+</property>
+
+sudo mkdir -p /data/1/mapred/local /data/2/mapred/local /data/3/mapred/local
+sudo chown -R mapred:hadoop /data/1/mapred/local /data/2/mapred/local /data/3/mapred/local
+
+sudo vi /etc/hadoop/conf/slaves
+<datanode-host>
+
+sudo vi /etc/hadoop/conf/masters
+<secondary-namenode-host>
+
+sudo vi /etc/hadoop/conf/hdfs-site.xml
+<property>
+  <name>dfs.namenode.http-address</name>
+  <value><namenode-host>:50070</value>
+</property>
+
+sudo vi /etc/hadoop/conf/hadoop-env.sh
+export HADOOP_MAPRED_HOME=/usr/lib/hadoop-0.20-mapreduce
+
+sudo apt-get install hadoop-httpfs
+
+sudo update-alternatives --display hadoop-httpfs-conf
+
+sudo cp -r /etc/hadoop-httpfs/conf.empty/ /etc/hadoop-httpfs/conf.dist/
+ls -al /etc/hadoop-httpfs/conf.dist/
+
+sudo update-alternatives --install /etc/hadoop-httpfs/conf hadoop-httpfs-conf /etc/hadoop-httpfs/conf.dist 20
+sudo update-alternatives --set hadoop-httpfs-conf /etc/hadoop-httpfs/conf.dist
+sudo update-alternatives --config hadoop-httpfs-conf
+
+sudo vi /etc/hadoop/conf/core-site.xml
+<property>
+  <name>hadoop.proxyuser.httpfs.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.httpfs.groups</name>
+  <value>*</value>
+</property>
+
+sudo vi /etc/hadoop/conf/hdfs-site.xml
+<property>
+  <name>dfs.webhdfs.enabled</name>
+  <value>true</value>
+</property>
+
+sudo vi /etc/security/limits.d/hdfs.conf
+hdfs   - nofile 32768
+hdfs   - nproc  65536
+
+sudo vi /etc/security/limits.d/mapred.conf
+mapred    - nofile 32768
+mapred    - nproc  65536
+
+sudo usermod -a -G hadoop $USER
+sudo -u hdfs hadoop fs -mkdir /tmp
+sudo -u hdfs hadoop fs -chmod -R 1777 /tmp
+sudo -u hdfs hadoop fs -mkdir /tmp/hadoop-mapred/mapred/system
+sudo -u hdfs hadoop fs -chown mapred:hadoop /tmp/hadoop-mapred/mapred/system
+sudo -u hdfs hadoop fs -mkdir /tmp/hadoop-mapred/mapred/staging/$USER
+sudo -u hdfs hadoop fs -chown -R $USER:hadoop /tmp/hadoop-mapred/mapred/staging/$USER
+sudo -u hdfs hadoop fs -ls -R /
+sudo -u hdfs hadoop fs -mkdir /user/$USER
+sudo -u hdfs hadoop fs -chown $USER /user/$USER
+
+for x in `cd /etc/init.d ; ls hadoop-hdfs-*` ; do sudo service $x restart ; done
+for x in `cd /etc/init.d ; ls hadoop-0.20-mapreduce-*` ; do sudo service $x restart ; done
+sudo $JAVA_HOME/bin/jps
+
+http://<namenode-host>:50070/
+http://<jobtracker-host>:50030/
+
+sudo service hadoop-httpfs restart
+http://<namenode-host>:14000/webhdfs/v1?op=gethomedirectory&user.name=<username>
+http://<namenode-host>:50070/webhdfs/v1/?op=liststatus&user.name=<username>
+
+#test
+hadoop fs -mkdir input
+hadoop fs -put /etc/hadoop/conf/*.xml input
+hadoop fs -ls input
+
+hadoop jar /usr/lib/hadoop-0.20-mapreduce/hadoop-examples.jar grep input output23 'dfs[a-z.]+'
+
+hadoop fs -ls
+hadoop fs -ls output23
+hadoop fs -cat output23/part-00000 | head
+
+hadoop fs -rm -r output*
+

@@ -1,0 +1,16 @@
+
+#dashboard service
+
+#on the controller node
+# apt-get install memcached libapache2-mod-wsgi openstack-dashboard
+# apt-get remove --purge openstack-dashboard-ubuntu-theme
+
+# vi /etc/memcached.conf
+
+# vi /etc/openstack-dashboard/local_settings.py
+
+# service apache2 restart
+# service memcached restart
+
+http://<controller-host>/horizon
+

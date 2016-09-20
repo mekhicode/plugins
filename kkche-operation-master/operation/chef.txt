@@ -1,0 +1,80 @@
+
+#server
+hostname -f
+sudo hostname '<fqdn>'
+sudo bash -c 'echo "<fqdn>" > /etc/hostname'
+sudo bash -c 'echo -e "<ip-address> `hostname -f` `hostname -s`" > /etc/hosts'
+
+#download package
+http://www.opscode.com/chef/install/
+
+cd /tmp
+wget http://192.168.88.18/programming/operation/chef/release/\
+chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+
+sudo dpkg -i chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+sudo chef-server-ctl reconfigure
+sudo chef-server-ctl test
+sudo chef-server-ctl status
+
+https://<chef-server-host>
+username: admin
+password: p@ssw0rd1
+
+#change password
+https://<chef-server-host>/users
+
+sudo chmod 644 /etc/chef-server/admin.pem
+sudo chmod 644 /etc/chef-server/chef-validator.pem
+
+#workstation
+cd /tmp
+wget http://192.168.88.18/programming/operation/chef/release/\
+chef_11.8.0-1.ubuntu.12.04_amd64.deb
+
+sudo dpkg -i chef_11.8.0-1.ubuntu.12.04_amd64.deb
+
+#gem install chef
+
+chef-client -v
+
+sudo scp <username>@<chef-server-host>:/etc/chef-server/admin.pem /etc/chef-server/admin.pem
+sudo scp <username>@<chef-server-host>:/etc/chef-server/chef-validator.pem /etc/chef-server/chef-validator.pem
+
+knife configure --initial
+
+vi ~/.chef/knife.rb
+cookbook_path [ '</path/to/chef-repo/cookbooks>' ]
+
+git clone git://github.com/opscode/chef-repo.git
+mkdir -p chef-repo/.chef
+cp ~/.chef/knife.rb chef-repo/.chef
+cp /etc/chef-server/chef-validator.pem chef-repo/.chef
+cp ~/.chef/<username>.pem chef-repo/.chef
+
+knife user list
+
+knife client list
+knife bootstrap <ip-address> -x <username> -P <password> --sudo
+EDITOR=vi knife client create <fqdn>
+knife client show <fqdn>
+knife client delete <fqdn> -y
+
+knife node list
+EDITOR=vi knife node create <fqdn>
+knife node run_list add <fqdn> 'recipe[<cookbook-name>]'
+knife node run_list remove <fqdn>
+knife node delete <fqdn> -y
+
+knife cookbook list
+knife cookbook site list
+knife cookbook site download <cookbook-name>
+knife cookbook site install <cookbook-name>
+knife cookbook create <cookbook-name>
+knife cookbook upload <cookbook-name>
+knife bootstrap <fqdn> -x <username> -P <password> -r "recipe[<cookbook-name>]" --sudo
+
+#client
+sudo chef-client
+sudo ohai
+

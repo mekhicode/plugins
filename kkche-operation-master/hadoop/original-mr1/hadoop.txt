@@ -1,0 +1,89 @@
+
+tar xfz hadoop-1.1.2.tar.gz
+sudo mv hadoop-1.1.2 /opt
+sudo chown -R `whoami`:root /opt/hadoop-1.1.2
+
+sudo mkdir -p /data/hadoop/tmp
+sudo chown -R `whoami`:root /data/hadoop/tmp
+
+sudo vi /etc/hosts
+#127.0.1.1	<hostname>
+<ip> <hostname>
+
+sudo vi /opt/hadoop-1.1.2/conf/core-site.xml
+<configuration>
+  <property>
+    <name>fs.default.name</name>
+    <value>hdfs://<hostname>:9000</value>
+  </property>
+  <property>
+    <name>hadoop.tmp.dir</name>
+    <value>/data/hadoop/tmp</value>
+  </property>
+</configuration>
+
+sudo vi /opt/hadoop-1.1.2/conf/hdfs-site.xml
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>1</value>
+  </property>
+</configuration>
+
+sudo vi /opt/hadoop-1.1.2/conf/mapred-site.xml
+<configuration>
+  <property>
+    <name>mapred.job.tracker</name>
+    <value><hostname>:9001</value>
+  </property>
+</configuration>
+
+echo $JAVA_HOME
+sudo vi /opt/hadoop-1.1.2/conf/hadoop-env.sh
+export JAVA_HOME=<JAVA_HOME>
+
+sudo vi /opt/hadoop-1.1.2/conf/masters
+<hostname>
+
+sudo vi /opt/hadoop-1.1.2/conf/slaves
+<hostname>
+
+sudo vi /etc/profile.d/hadoop.sh
+export HADOOP_HOME=/opt/hadoop-1.1.2
+export PATH=$HADOOP_HOME/bin:$PATH
+
+ssh-keygen -t rsa
+ssh-copy-id `whoami`@`hostname`
+ssh-add
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+
+$HADOOP_HOME/bin/hadoop namenode -format
+
+$HADOOP_HOME/bin/start-all.sh
+$HADOOP_HOME/bin/stop-all.sh
+$HADOOP_HOME/bin/hadoop-daemon.sh start [namenode | secondarynamenode | datanode | jobtracker | tasktracker]
+
+http://<hostname>:50070/
+http://<hostname>:50030/
+
+jps
+netstat -ntl | grep 9000
+lsof -i:9000
+
+$HADOOP_HOME/bin/hadoop fs -ls -R /
+
+$HADOOP_HOME/bin/hadoop fs -mkdir /user/$USER
+$HADOOP_HOME/bin/hadoop fs -chown -R $USER /user/$USER
+
+$HADOOP_HOME/bin/hadoop fs -mkdir input
+$HADOOP_HOME/bin/hadoop fs -ls input
+
+$HADOOP_HOME/bin/hadoop fs -put $HADOOP_HOME/conf input
+$HADOOP_HOME/bin/hadoop jar $HADOOP_HOME/hadoop-examples-*.jar grep input/conf output 'dfs[a-z.]+'
+
+$HADOOP_HOME/bin/hadoop fs -ls
+$HADOOP_HOME/bin/hadoop fs -ls output
+$HADOOP_HOME/bin/hadoop fs -cat output/part-00000 | head
+
+$HADOOP_HOME/bin/hadoop fs -rmr output
+

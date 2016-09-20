@@ -1,0 +1,14 @@
+
+sudo dpkg -i openfire_3.8.2_all.deb
+
+sudo mysql -u root -h <mysql-server-host> -p
+> create user 'openfire'@'%' identified by '<openfire_password>';
+> create database `openfire` default character set `utf8` collate `utf8_unicode_ci`;
+> use openfire;
+> source /usr/share/openfire/resources/database/openfire_mysql.sql;
+> grant all privileges on openfire.* to 'openfire'@'localhost' identified by '<openfire_password>' with grant option;
+> grant all privileges on openfire.* to 'openfire'@'%' identified by '<openfire_password>' with grant option;
+> flush privileges;
+
+http://<openfire-host>:9090/
+

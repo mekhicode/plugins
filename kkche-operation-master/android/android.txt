@@ -1,0 +1,36 @@
+
+cd $HOME/software/
+wget http://192.168.88.100/programming/android/release/android-sdk-linux.zip
+unzip android-sdk-linux.zip
+
+vi ~/.bashrc
+[[ -f $HOME/.bash_profile ]] && . $HOME/.bash_profile
+
+vi ~/.bash_profile
+export ANDROID_HOME=$HOME/software/android-sdk-linux
+export PATH=$ANDROID_HOME/tools:$PATH
+export PATH=$ANDROID_HOME/platform-tools:$PATH
+
+source ~/.bash_profile
+
+#eclipse plugin
+https://dl-ssl.google.com/android/eclipse/
+
+sudo apt-get install ia32-libs
+
+sudo ln -s /usr/lib/i386-linux-gnu/mesa/libGL.so.1.2.0 /usr/lib/libGL.so
+
+#Setting up a Device for Development
+http://developer.android.com/tools/device.html
+
+sudo vi /etc/udev/rules.d/51-android.rules
+SUBSYSTEM=="usb", ATTR{idVendor}=="<vendor-id>", MODE="0666", GROUP="plugdev"
+
+sudo chmod a+r /etc/udev/rules.d/51-android.rules
+
+mvn clean install
+mvn android:emulator-start
+emulator @<avd-name>
+mvn android:deploy
+mvn android:run
+

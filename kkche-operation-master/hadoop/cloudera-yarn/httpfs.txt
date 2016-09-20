@@ -1,0 +1,9 @@
+
+sudo apt-get install hadoop-httpfs
+
+sudo update-alternatives --display hadoop-httpfs-conf
+
+sudo service hadoop-httpfs start
+
+http://cdh4-yarn-host-1.quanqiuwang.com:14000/webhdfs/v1/
+

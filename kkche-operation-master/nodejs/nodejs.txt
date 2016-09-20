@@ -1,0 +1,24 @@
+
+sudo apt-get install python-software-properties python g++ make
+
+sudo add-apt-repository ppa:chris-lea/node.js
+sudo apt-get update && sudo apt-get install nodejs
+
+sudo npm config ls -l
+sudo npm config get tmp
+sudo npm config set tmp ~/tmp/npm
+mkdir ~/tmp/npm/
+
+sudo npm ls -g
+npm info <package_name>
+
+sudo npm install -g bower grunt-cli yo coffee-script less phantomjs
+
+sudo npm update -g <package_name>
+
+sudo gem install sass compass
+
+#application
+npm install
+bower install
+grunt <task_name>

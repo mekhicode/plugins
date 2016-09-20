@@ -1,0 +1,30 @@
+
+Preferences -> Java -> Editor -> Content Assist
+Auto activation triggers for Java: .abcdefghijklmnopqrstuvwxyz
+
+vi eclipse.ini
+-Xms1024m
+-Xmx4096m
+
+sudo vi /usr/share/applications/eclipse.desktop
+[Desktop Entry]
+Name=Eclipse
+Exec=/home/<username>/software/eclipse/eclipse
+Icon=/home/<username>/software/eclipse/icon.xpm
+Type=Application
+StartupNotify=true
+Terminal=false
+
+#Plugins
+Marketplace Client
+EGit
+Spring Tool Suite
+Thymeleaf (http://www.thymeleaf.org/eclipse-plugin-update-site/)
+Grep Console
+ResourceBundle Editor
+Eclipse Jetty
+FindBugs
+PMD (http://sourceforge.net/projects/pmd/files/pmd-eclipse/update-site/)
+EclEmma
+Sonar
+

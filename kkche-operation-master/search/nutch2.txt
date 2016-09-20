@@ -1,0 +1,79 @@
+
+#conf/nutch-site.xml
+<property>
+ <name>storage.data.store.class</name>
+ <value>org.apache.gora.hbase.store.HBaseStore</value>
+</property>
+<property>
+ <name>http.agent.name</name>
+ <value>quanqiuwang</value>
+</property>
+<property>
+  <name>http.robots.agents</name>
+  <value>quanqiuwang,*</value>
+</property>
+<property>
+  <name>file.content.limit</name> 
+  <value>-1</value>
+</property>
+<property>
+  <name>http.content.limit</name> 
+  <value>-1</value>
+</property>
+<property>
+  <name>plugin.includes</name>
+  <value>protocol-http|urlfilter-regex|parse-(html|tika|zip|js|swf|feed)|index-(basic|more)|scoring-opic|urlnormalizer-(pass|regex|basic)</value>
+</property>
+
+#ivy/ivy.xml
+<dependency org="org.apache.gora" name="gora-hbase" rev="0.2.1" conf="*->default" />
+
+#conf/gora.properties
+gora.datastore.default=org.apache.gora.hbase.store.HBaseStore
+
+ant runtime
+
+export JAVA_HOME=/usr/lib/jvm/jdk1.6.0_33
+export NUTCH_HOME=/opt/nutch-2.1
+export NUTCH_DEPLOY_HOME=/opt/nutch-2.1/runtime/deploy
+export NUTCH_LOCAL_HOME=/opt/nutch-2.1/runtime/local
+export SOLR_HOME=/opt/solr-4.0.0
+export HBASE_HOME=/opt/hbase-0.92.2
+
+rm $NUTCH_LOCAL_HOME/lib/hbase-0.90.4.jar
+cp $HBASE_HOME/hbase-0.92.2.jar $NUTCH_LOCAL_HOME/lib
+
+cp $NUTCH_LOCAL_HOME/conf/schema-solr4.xml \
+$SOLR_HOME/example/solr/collection1/conf/schema.xml
+
+wget http://nlp.solutions.asia/wp-content/uploads/2012/08/schema.xml \
+-O $SOLR_HOME/example/solr/collection1/conf/schema.xml
+
+cd $NUTCH_LOCAL_HOME
+mkdir -p urls
+echo "http://www.163.com/" >> urls/seed.txt
+
+bin/nutch crawl urls -depth 2 -topN 5
+
+bin/nutch inject urls
+
+bin/nutch generate -topN 1000
+
+batchId=<batchId>
+
+bin/nutch fetch $batchId
+
+bin/nutch parse $batchId
+
+bin/nutch updatedb
+
+bin/nutch solrindex http://user-desktop-1.quanqiuwang.com:8983/solr/ -all -reindex
+
+$HBASE_HOME/bin/hbase shell
+> list
+> describe 'webpage'
+> scan 'webpage'
+> get 'webpage', 'com.madisonsdirtysecrets.www:http/'
+> disable 'webpage'
+> drop 'webpage'
+

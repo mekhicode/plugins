@@ -1,0 +1,30 @@
+
+cd /tmp
+wget http://192.168.88.100/programming/hadoop/release/zookeeper-3.4.5.tar.gz
+tar xfz zookeeper-3.4.5.tar.gz
+sudo mv zookeeper-3.4.5 /opt
+
+sudo cp /opt/zookeeper-3.4.5/conf/zoo_sample.cfg /opt/zookeeper-3.4.5/conf/zoo.cfg
+dataDir=/var/lib/zookeeper
+clientPort=2181
+
+sudo chown -R `whoami`:root /opt/zookeeper-3.4.5
+
+sudo vi /etc/profile.d/zookeeper.sh
+export ZOOKEEPER_HOME=/opt/zookeeper-3.4.5
+export PATH=$ZOOKEEPER_HOME/bin:$PATH
+
+source /etc/profile.d/zookeeper.sh
+
+sudo $ZOOKEEPER_HOME/bin/zkServer.sh start
+sudo $ZOOKEEPER_HOME/bin/zkServer.sh stop
+
+$ZOOKEEPER_HOME/bin/zkCli.sh -server <zk-server-host>:2181
+] ls /
+] create /zk_test my_data
+] get /zk_test
+] set /zk_test junk
+] delete /zk_test
+
+echo stat |nc <zk-server-host> 2181
+

@@ -1,0 +1,15 @@
+
+sudo apt-get install zookeeper
+sudo apt-get install zookeeper-server
+
+sudo update-alternatives --display zookeeper-conf
+
+sudo vi /etc/zookeeper/conf/zoo.cfg
+
+sudo service zookeeper-server init --myid=1
+
+sudo /etc/init.d/zookeeper-server init --force
+sudo bash -c 'echo "1" > /var/lib/zookeeper/myid'
+
+sudo service zookeeper-server restart
+

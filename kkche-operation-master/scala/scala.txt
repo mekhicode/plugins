@@ -1,0 +1,15 @@
+
+tar xfz scala-2.11.1.tgz
+sudo mv scala-2.11.1 /opt/
+sudo chown -R root:root /opt/scala-2.11.1/
+sudo chmod -R u+x /opt/scala-2.11.1/bin/
+
+sudo vi /etc/profile.d/scala.sh
+export SCALA_HOME=/opt/scala-2.11.1
+export PATH=$SCALA_HOME/bin:$PATH
+
+source /etc/profile.d/scala.sh
+
+#gedit plugin
+sudo cp scala.lang /usr/share/gtksourceview-3.0/language-specs/
+

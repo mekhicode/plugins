@@ -1,0 +1,63 @@
+
+# apt-get install guestfish guestmount libguestfs-tools virt-manager vinagre cloud-init
+
+# guestfish --rw -a <image-name>
+><fs> run
+><fs> list-filesystems
+><fs> mount /dev/vg_centosbase/lv_root /
+><fs> rm /etc/udev/rules.d/70-persistent-net.rules
+><fs> edit /etc/sysconfig/network-scripts/ifcfg-eth0
+><fs> touch /etc/sysconfig/modules/8021q.modules
+><fs> edit /etc/sysconfig/modules/8021q.modules
+modprobe 8021q
+><fs> chmod 0755 /etc/sysconfig/modules/8021q.modules
+><fs> exit
+
+# guestmount -a <image-name> -i --rw /mnt
+# umount /mnt
+
+# virsh shutdown instance-000000e1
+# virt-edit -d instance-000000e1 /etc/shadow
+# virsh start instance-000000e1
+
+# virt-filesystems --long --parts --blkdevs -h -a <image-name>
+
+# qemu-img create -f qcow2 <new-image-name> 50G
+# virt-resize --expand /dev/<partition-name> <image-name> <new-image-name>
+
+# virsh net-list
+# virsh net-start default
+
+ssh -X root@<server-host>
+# virt-manager
+
+# virt-install --os-variant list
+
+# qemu-img create -f qcow2 <image-path> 10G
+# virt-install --virt-type kvm --name <image-name> --ram 4096 \
+--cdrom=<iso-path> \
+--disk <image-path>,format=qcow2 \
+--network network=default \
+--graphics vnc,listen=0.0.0.0 --noautoconsole \
+--os-type=linux --os-variant=ubuntuprecise
+
+# virsh vncdisplay <image-name>
+
+vinagre 0.0.0.0::5901
+
+# virsh dumpxml <image-name>
+# virsh start <image-name> --paused
+# virsh attach-disk --type cdrom --mode readonly <image-name> "" hdc
+# virsh resume <image-name>
+
+# dpkg-reconfigure cloud-init
+
+#on virtual machine
+sudo ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key
+sudo ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key
+sudo vi /etc/cloud/cloud.cfg
+sudo shutdown -h now
+
+# virt-sysprep -d <image-name>
+# virsh undefine <image-name>
+

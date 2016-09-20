@@ -1,0 +1,117 @@
+
+sudo apt-get install hue hue-server
+sudo apt-get install hue-plugins
+
+sudo vi /etc/hadoop/conf/hdfs-site.xml
+<property>
+  <name>dfs.webhdfs.enabled</name>
+  <value>true</value>
+</property>
+
+sudo vi /etc/hadoop/conf/core-site.xml
+<property>
+  <name>hadoop.proxyuser.httpfs.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.httpfs.groups</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.hue.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>hadoop.proxyuser.hue.groups</name>
+  <value>*</value>
+</property>
+
+sudo vi /etc/hadoop-httpfs/conf/httpfs-site.xml
+<property>
+  <name>httpfs.proxyuser.hue.hosts</name>
+  <value>*</value>
+</property>
+<property>
+  <name>httpfs.proxyuser.hue.groups</name>
+  <value>*</value>
+</property>
+
+sudo cp /usr/share/hue/desktop/libs/hadoop/java-lib/hue-plugins-*.jar /usr/lib/hadoop-0.20-mapreduce/lib
+
+sudo vi /etc/hadoop/conf/mapred-site.xml
+<property>
+  <name>jobtracker.thrift.address</name>
+  <value><jobtracker-host>:9290</value>
+</property>
+<property>
+  <name>mapred.jobtracker.plugins</name>
+  <value>org.apache.hadoop.thriftfs.ThriftJobTrackerPlugin</value>
+</property>
+
+sudo chown hue:hue -R /var/lib/hive/metastore/metastore_db 
+sudo chmod -R 777 /var/lib/hive/metastore/metastore_db
+
+sudo vi /etc/oozie/conf/oozie-site.xml
+<property>
+    <name>oozie.service.ProxyUserService.proxyuser.hue.hosts</name>
+    <value>*</value>
+</property>
+<property>
+    <name>oozie.service.ProxyUserService.proxyuser.hue.groups</name>
+    <value>*</value>
+</property>
+
+sudo usermod -a -G hadoop hue
+
+sudo apt-get install libmysqlclient-dev libmysql-java
+
+mysql -u root -h <mysql-host> -p
+> create user '<username>'@'%' identified by '<password>';
+> create database hue;
+> grant all privileges on hue.* to '<username>'@'%' identified by '<password>' with grant option;
+> flush privileges;
+
+sudo vi /etc/hue/hue.ini
+[desktop]
+  secret_key=qpbdxoewsqlkhztybvfidtvwekftusgdlofbcfghaswuicmqp
+  time_zone=Asia/Shanghai
+[[database]]
+  engine=mysql
+  host=<mysql-host>
+  port=3306
+  user=<username>
+  password=<password>
+  name=hue
+[[hdfs_clusters]]
+[[[default]]]
+  fs_defaultfs=hdfs://<hdfs-host>:8020
+  webhdfs_url=http://<hdfs-host>:50070/webhdfs/v1/
+  webhdfs_url=http://<hdfs-host>:14000/webhdfs/v1/
+[[mapred_clusters]]
+[[[default]]]
+  jobtracker_host=<jobtracker-host>
+  thrift_port=9290
+[liboozie]
+  oozie_url=http://<oozie-host>:11000/oozie
+[beeswax]
+  beeswax_meta_server_host=<hive-metastore-host>
+  beeswax_meta_server_port=8003
+[sqoop]
+  server_url=http://<sqoop-server-host>:12000/sqoop
+[impala]
+  server_host=<impala-host>
+  server_interface=hiveserver2
+  server_port=21050
+[[[[[ JAVA_HOME ]]]]]
+  value = "</path/to/java/home>"
+
+sudo /usr/share/hue/build/env/bin/hue syncdb --noinput
+
+cd /usr/share/hue/apps/shell/src/shell/build
+sudo chown root:hue setuid 
+sudo chmod 4750 setuid
+
+sudo service hue restart
+
+http://<hue-server-host>:8888/
+

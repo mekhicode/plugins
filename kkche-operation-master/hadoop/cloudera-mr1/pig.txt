@@ -1,0 +1,63 @@
+
+sudo apt-get install pig
+
+export PIG_CONF_DIR=/usr/lib/pig/conf
+export PIG_CLASSPATH=/usr/lib/hbase/hbase-0.94.6-cdh4.5.0-security.jar:/usr/lib/zookeeper/zookeeper-3.4.5-cdh4.5.0.jar
+
+sudo update-alternatives --display pig-conf
+
+pig
+> LS
+> A = LOAD 'input';
+> B = FILTER A BY $0 MATCHES '.*dfs[a-z.]+.*';
+> DUMP B;
+
+> REGISTER /usr/lib/zookeeper/zookeeper-3.4.5-cdh4.5.0.jar
+> REGISTER /usr/lib/hbase/hbase-0.94.6-cdh4.5.0-security.jar
+> REGISTER /usr/lib/hbase/lib/guava-11.0.2.jar
+
+sudo apt-get install pig-udf-datafu
+
+> REGISTER /usr/lib/pig/datafu-0.0.4-cdh4.5.0.jar
+
+> A = load 'trans_hour_txt' using PigStorage(','); 
+> B = foreach A generate $0 as pri_acct_no;
+> store B into 'trans_hour_txt_out';
+
+> A = LOAD 'trans_hour_txt' USING PigStorage(',') 
+> AS (pri_acct_no:chararray, mchnt_cd:chararray);
+> B = FOREACH A GENERATE pri_acct_no, mchnt_cd;
+> store B into 'trans_hour_txt_out2';
+
+pig hdfs://<namenode-host>:8020/path/to/script.pig
+
+https://cwiki.apache.org/confluence/display/PIG/PigTutorial
+
+#script1.pig
+REGISTER ./tutorial.jar; 
+raw = LOAD 'excite.log.bz2' USING PigStorage('\t') AS (user, time, query);
+clean1 = FILTER raw BY org.apache.pig.tutorial.NonURLDetector(query);
+clean2 = FOREACH clean1 GENERATE user, time, org.apache.pig.tutorial.ToLower(query) as query;
+houred = FOREACH clean2 GENERATE user, org.apache.pig.tutorial.ExtractHour(time) as hour, query;
+ngramed1 = FOREACH houred GENERATE user, hour, flatten(org.apache.pig.tutorial.NGramGenerator(query)) as ngram;
+ngramed2 = DISTINCT ngramed1;
+hour_frequency1 = GROUP ngramed2 BY (ngram, hour);
+hour_frequency2 = FOREACH hour_frequency1 GENERATE flatten($0), COUNT($1) as count;
+uniq_frequency1 = GROUP hour_frequency2 BY group::ngram;
+uniq_frequency2 = FOREACH uniq_frequency1 GENERATE flatten($0), flatten(org.apache.pig.tutorial.ScoreGenerator($1));
+uniq_frequency3 = FOREACH uniq_frequency2 GENERATE $1 as hour, $0 as ngram, $2 as score, $3 as count, $4 as mean;
+filtered_uniq_frequency = FILTER uniq_frequency3 BY score > 2.0;
+ordered_uniq_frequency = ORDER filtered_uniq_frequency BY hour, score;
+STORE ordered_uniq_frequency INTO 'script1-hadoop-results' USING PigStorage();
+
+#script2.pig
+hour_frequency3 = FOREACH hour_frequency2 GENERATE $0 as ngram, $1 as hour, $2 as count;
+hour00 = FILTER hour_frequency2 BY hour eq '00';
+hour12 = FILTER hour_frequency3 BY hour eq '12';
+same = JOIN hour00 BY $0, hour12 BY $0;
+same1 = FOREACH same GENERATE hour_frequency2::hour00::group::ngram as ngram, $2 as count00, $5 as count12;
+STORE same1 INTO 'script2-hadoop-results' USING PigStorage();
+
+hadoop fs -copyFromLocal excite.log.bz2 .
+pig script1-hadoop.pig
+

@@ -1,0 +1,94 @@
+
+#on the controller node
+# apt-get install neutron-server
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+control_exchange = neutron
+rabbit_host = <controller_host>
+rabbit_password = <rabbit_pass>
+notification_driver = neutron.openstack.common.notifier.rabbit_notifier
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+[keystone_authtoken]
+admin_tenant_name=service
+admin_user=neutron
+admin_password=<neutron_pass>
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini 
+[ovs]
+network_vlan_ranges = physnet1
+bridge_mappings = physnet1:br-eth0
+
+# service neutron-server restart
+
+#on the compute node
+# vi /etc/nova/nova.conf
+network_api_class=nova.network.neutronv2.api.API
+neutron_admin_username=neutron
+neutron_admin_password=<neutron_pass>
+neutron_admin_auth_url=http://<controller_host>:35357/v2.0/
+neutron_auth_strategy=keystone
+neutron_admin_tenant_name=service
+neutron_url=http://<controller_host>:9696/
+
+#on the compute and network l2 agent
+# apt-get install neutron-plugin-openvswitch-agent openvswitch-switch
+
+# ovs-vsctl add-br br-int
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+control_exchange = neutron
+rabbit_host = <controller_host>
+rabbit_password = <rabbit_pass>
+notification_driver = neutron.openstack.common.notifier.rabbit_notifier
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini 
+[ovs]
+network_vlan_ranges = physnet1
+bridge_mappings = physnet1:br-eth0
+
+# ovs-vsctl add-br br-eth0
+# ovs-vsctl add-port br-eth0 eth0
+
+# service openvswitch-switch restart
+# service neutron-plugin-openvswitch-agent restart
+
+#on the network dhcp agent
+# apt-get install neutron-dhcp-agent
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+control_exchange = neutron
+rabbit_host = <controller_host>
+rabbit_password = <rabbit_pass>
+notification_driver = neutron.openstack.common.notifier.rabbit_notifier
+
+# vi /etc/neutron/dhcp_agent.ini
+dhcp_driver = neutron.agent.linux.dhcp.Dnsmasq
+
+# service neutron-dhcp-agent restart
+
+#logical configuration on the network node
+# neutron net-create --tenant-id <tenant-id> sharednet1 --shared --provider:network_type flat \
+  --provider:physical_network physnet1
+
+# neutron subnet-create --tenant-id <tenant-id> sharednet1 30.0.0.0/24
+
+# nova --os-tenant-name <tenant-name> --os-username <username> --os-password <password> \
+--os-auth-url=http://<controller_host>:5000/v2.0 boot --image <image-id> --flavor <flavor-id> \
+--nic net-id=<net-id> <instance-name>
+
+# nova --os-tenant-name <tenant-name> --os-username <username> --os-password <password> \
+--os-auth-url=http://<controller_host>:5000/v2.0 list
+
+# ip addr flush eth0
+# ip addr add 30.0.0.201/24 dev br-eth0
+$ ping 30.0.0.3
+

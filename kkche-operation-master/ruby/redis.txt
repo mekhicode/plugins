@@ -1,0 +1,142 @@
+
+vi config/initializers/redis.rb
+$redis = Redis.new(:host => 'localhost', :port => 6379)
+rails console
+$redis
+$redis.set('chunky', 'bacon')
+$redis.get('chunky')
+
+class User < ActiveRecord::Base
+# follow a user
+def follow!(user)
+$redis.multi do
+$redis.sadd(self.redis_key(:following), user.id)
+$redis.sadd(user.redis_key(:followers), self.id)
+end
+end
+
+# unfollow a user
+def unfollow!(user)
+$redis.multi do
+$redis.srem(self.redis_key(:following), user.id)
+$redis.srem(user.redis_key(:followers), self.id)
+end
+end
+
+# users that self follows
+def followers
+user_ids = $redis.smembers(self.redis_key(:followers))
+User.where(:id => user_ids)
+end
+
+# users that follow self
+def following
+user_ids = $redis.smembers(self.redis_key(:following))
+User.where(:id => user_ids)
+end
+
+# users who follow and are being followed by self
+def friends
+user_ids = $redis.sinter(self.redis_key(:following), self.redis_key(:followers))
+User.where(:id => user_ids)
+end
+
+# does the user follow self
+def followed_by?(user)
+$redis.sismember(self.redis_key(:followers), user.id)
+end
+
+# does self follow user
+def following?(user)
+$redis.sismember(self.redis_key(:following), user.id)
+end
+
+# number of followers
+def followers_count
+$redis.scard(self.redis_key(:followers))
+end
+
+# number of users being followed
+def following_count
+$redis.scard(self.redis_key(:following))
+end
+
+# helper method to generate redis keys
+def redis_key(str)
+"user:#{self.id}:#{str}"
+end
+end
+
+> %w[Alfred Bob].each{|name| User.create(:name => name)}
+=> ['Alfred', 'Bob']
+> a, b = User.all
+=> [#<User id: 1, name: "Alfred">, #<User id: 2, name: "Bob">]
+> a.follow!(b)
+=> [1, 1]
+> a.following?(b)
+=> true
+> b.followed_by?(a)
+=> true
+> a.following
+=> [#<User id: 2, name: "Bob">]
+> b.followers
+=> [#<User id: 1, name: "Alfred">]
+> a.friends
+=> []
+> b.follow!(a)
+=> [1, 1]
+> a.friends
+=> [#<User id: 2, name: "Bob">]
+> b.friends
+=> [#<User id: 1, name: "Alfred">]
+
+class User < ActiveRecord::Base
+# log high score
+def scored(score)
+if score > self.high_score
+$redis.zadd("highscores", score, self.id)
+end
+end
+
+# table rank
+def rank
+$redis.zrevrank("highscores", self.id) + 1
+end
+
+# high score
+def high_score
+$redis.zscore("highscores", self.id).to_i
+end
+
+# load top 3 users
+def self.top_3
+$redis.zrevrange("highscores", 0, 2).map{|id| User.find(id)}
+end
+end
+
+> a, b, c, d = User.limit(4)
+=> [#<User id: 1, name: "Alfred">, #<User id: 2, name: "Bob">, #<User id: 3, name: "Charlie">, #<User id: 4, name: "Derek"">]
+> a.scored 100
+=> true
+> b.scored 500
+=> true
+> c.scored 25
+=> true
+> d.scored 10000
+=> true
+> d.high_score
+=> 10000
+> d.rank
+=> 1
+> c.rank
+=> 4
+> c.scored 5000000
+=> false
+> c.high_score
+=> 5000000
+> c.rank
+=> 1
+> User.top_3
+=> [#<User id: 3, name: "Charlie">, #<User id: 4, name: "Derek">, #<User id: 2, name: "Bob">]
+
+ 

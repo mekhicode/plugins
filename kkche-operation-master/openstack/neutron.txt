@@ -1,0 +1,249 @@
+
+#networking service
+
+#on the controller node
+# mysql -u root -p
+> create database neutron;
+> grant all privileges on neutron.* to 'neutron'@'localhost' identified by '<neutron_dbpass>';
+> grant all privileges on neutron.* to 'neutron'@'%' identified by '<neutron_dbpass>';
+> flush privileges;
+
+# keystone user-create --name=neutron --pass=<neutron_pass> --email=neutron@example.com
+
+# keystone user-role-add --user=neutron --tenant=service --role=admin
+
+# keystone service-create --name=neutron --type=network --description="OpenStack Networking Service"
+
+# keystone endpoint-create \
+--service-id=<service-id> \
+--publicurl=http://<controller-host>:9696 \
+--adminurl=http://<controller-host>:9696 \
+--internalurl=http://<controller-host>:9696
+
+#on a dedicated network node
+# apt-get install neutron-server neutron-dhcp-agent \
+neutron-plugin-openvswitch-agent neutron-l3-agent openvswitch-switch
+
+# vi /etc/sysctl.conf
+net.ipv4.ip_forward=1
+net.ipv4.conf.all.rp_filter=0
+net.ipv4.conf.default.rp_filter=0
+
+# sysctl -p
+# service networking restart
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+auth_strategy = keystone
+rabbit_host = <controller-host>
+rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+neutron_metadata_proxy_shared_secret = <metadata_pass>
+service_neutron_metadata_proxy = true
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller-host>/neutron
+[keystone_authtoken]
+auth_host = <controller-host>
+auth_port = 35357
+auth_protocol = http
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+
+# vi /etc/neutron/api-paste.ini
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+auth_host=<controller-host>
+auth_uri=http://<controller-host>:5000
+admin_user=neutron
+admin_tenant_name=service
+admin_password=<neutron_pass>
+
+# vi /etc/neutron/dhcp_agent.ini
+dhcp_driver = neutron.agent.linux.dhcp.Dnsmasq
+
+# vi /etc/neutron/metadata_agent.ini
+[DEFAULT]
+auth_url = http://<controller-host>:5000/v2.0
+auth_region = regionOne
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+nova_metadata_ip = <controller-ip>
+metadata_proxy_shared_secret = <metadata_pass>
+
+# service nova-api restart
+# for x in server dhcp-agent l3-agent metadata-agent; do service neutron-$x restart ; done
+# service neutron-plugin-openvswitch-agent restart
+# service openvswitch-switch restart
+
+# ovs-vsctl add-br br-int
+# ovs-vsctl add-br br-ex
+# ovs-vsctl add-port br-ex <external_interface>
+
+# vi /etc/neutron/l3_agent.ini
+# vi /etc/neutron/dhcp_agent.ini
+interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+use_namespaces = True
+
+# vi /etc/neutron/neutron.conf
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[securitygroup]
+firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+
+# service neutron-plugin-openvswitch-agent restart
+
+#VLANs
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[ovs]
+tenant_network_type = vlan
+network_vlan_ranges = physnet1:1:4094
+bridge_mappings = physnet1:br-<data_interface>
+
+# ovs-vsctl add-br br-<data_interface>
+# ovs-vsctl add-port br-<data_interface> <data_interface>
+
+#on a dedicated compute node
+# vi /etc/sysctl.conf
+net.ipv4.conf.all.rp_filter=0
+net.ipv4.conf.default.rp_filter=0
+
+# sysctl -p
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+auth_host = <controller-host>
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+auth_url = http://<controller-host>:35357/v2.0
+auth_strategy = keystone
+rpc_backend = neutron.openstack.common.rpc.impl_kombu
+rabbit_host = <controller-host>
+rabbit_port = 5672
+rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller-host>/neutron
+
+# vi /etc/neutron/api-paste.ini
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+auth_host=<controller-host>
+admin_user=neutron
+admin_tenant_name=service
+admin_password=<neutron_pass>
+
+# vi /etc/nova/nova.conf
+network_api_class=nova.network.neutronv2.api.API
+neutron_url=http://<controller-host>:9696
+neutron_auth_strategy=keystone
+neutron_admin_tenant_name=service
+neutron_admin_username=neutron
+neutron_admin_password=<neutron_pass>
+neutron_admin_auth_url=http://<controller-host>:35357/v2.0
+linuxnet_interface_driver = nova.network.linux_net.LinuxOVSInterfaceDriver
+firewall_driver=nova.virt.firewall.NoopFirewallDriver
+security_group_api=neutron
+
+# service nova-compute restart
+
+# apt-get install neutron-plugin-openvswitch-agent openvswitch-switch openvswitch-datapath-dkms
+
+# service openvswitch-switch restart
+
+# ovs-vsctl add-br br-int
+
+# vi /etc/neutron/neutron.conf
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[securitygroup]
+firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+
+# service neutron-plugin-openvswitch-agent restart
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[ovs]
+tenant_network_type = vlan
+network_vlan_ranges = physnet1:1:4094
+bridge_mappings = physnet1:br-<data_interface>
+
+# ovs-vsctl add-br br-DATA_INTERFACE
+# ovs-vsctl add-port br-<data_interface> <data_interface>
+
+#on a dedicated controller node
+# apt-get install neutron-server
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+auth_host = <controller-host>
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+auth_url = http://<controller-host>:35357/v2.0
+auth_strategy = keystone
+rpc_backend = neutron.openstack.common.rpc.impl_kombu
+rabbit_host = <controller-host>
+rabbit_port = 5672
+#rabbit_userid = guest
+rabbit_password = <rabbit_pass>
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller-host>/neutron
+
+# vi /etc/neutron/api-paste.ini
+[filter:authtoken]
+paste.filter_factory = keystoneclient.middleware.auth_token:filter_factory
+admin_tenant_name = service
+admin_user = neutron
+admin_password = <neutron_pass>
+
+# vi /etc/nova/nova.conf
+network_api_class=nova.network.neutronv2.api.API
+neutron_url=http://<controller-host>:9696
+neutron_auth_strategy=keystone
+neutron_admin_tenant_name=service
+neutron_admin_username=neutron
+neutron_admin_password=<neutron_pass>
+neutron_admin_auth_url=http://<controller-host>:35357/v2.0
+linuxnet_interface_driver = nova.network.linux_net.LinuxOVSInterfaceDriver
+firewall_driver=nova.virt.firewall.NoopFirewallDriver
+security_group_api=neutron
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[securitygroup]
+firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+
+# service neutron-server restart
+
+# apt-get install neutron-plugin-openvswitch-agent
+
+# vi /etc/neutron/neutron.conf
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini
+[ovs]
+tenant_network_type = vlan
+network_vlan_ranges = physnet1:1:4094
+
+#create the base neutron networks
+# neutron net-create ext-net -- --router:external=True
+
+# neutron subnet-create ext-net \
+--allocation-pool start=<floating_ip_start>,end=<floating_ip_end> \
+--gateway=<external_interface_gateway> --enable_dhcp=False \
+<external_interface_cidr>
+
+# keystone tenant-create --name <demo_tenant>
+# keystone tenant-list | grep <demo_tenant> | awk '{print $2;}'
+
+# neutron router-create ext-to-int --tenant-id <demo_tenant_id>
+# neutron router-gateway-set <ext_to_int_id> <ext_net_id>
+# neutron net-create --tenant-id <demo_tenant_id> demo-net <special_options>
+# neutron subnet-create --tenant-id <demo_tenant_id> demo-net 10.5.5.0/24 --gateway 10.5.5.1
+# neutron router-interface-add <ext_to_int_id> <demo_net_subnet_id>
+
+#--provider:network_type vlan --provider:physical_network physnet1 --provider:segmentation_id <seg_id>
+

@@ -1,0 +1,35 @@
+
+sudo bash -c 'echo "deb http://mirror.bjtu.edu.cn/cran/bin/linux/ubuntu precise/" >> /etc/apt/sources.list.d/r.list'
+sudo gpg --keyserver keyserver.ubuntu.com --recv-key E084DAB9
+sudo gpg -a --export E084DAB9 | sudo apt-key add -
+
+sudo apt-get update && sudo apt-get install r-base
+
+$ R
+> install.packages("<package_name>")
+> require(<package_name>)
+
+> x <- rnorm(9)
+
+> mat <- matrix(nrow = 3, ncol = 2, c(1,2,3,4,5,6))
+> mat[3,2]
+> apply(mat, MAR = 2, myFunc)
+
+> plot(discoveries, col="#333333", lwd=3, xlab="Year", main="Number of important discoveries per year")
+> plot(discoveries, col="#333333", lwd=3, type = "h", xlab="Year", main="Number of important discoveries per year")
+
+> list1 <- list(time = 1:40)
+> list1$price = c(rnorm(40,.5*list1$time,4))
+> plot(list1$time, list1$price, main = "fake data")
+
+> summary(rivers)
+
+> barplot(c(1,4,5,1,2), names.arg = c("red","blue","purple","green","yellow"))
+
+> round(runif(7, min=.5, max=6.5))
+
+> pets <- read.csv("http://learnxinyminutes.com/docs/pets.csv")
+> write.csv(pets, "pets2.csv")
+
+# RStudio IDE
+http://www.rstudio.com/

@@ -1,0 +1,17 @@
+sudo apt-get install ejabberd
+
+sudo vi /etc/ejabberd/ejabberd.cfg 
+{acl, admin, {user, "<username>", "<hostname>"}}.
+{hosts, ["localhost", "<hostname>"]}.
+{access, register, [{allow, all}]}.
+
+sudo /etc/init.d/ejabberd restart
+sudo ejabberdctl status
+
+sudo ejabberdctl register <username> <hostname> <password>
+sudo ejabberdctl unregister <username> <hostname>
+sudo ejabberdctl set-password <username> <hostname> <password>
+
+http://<hostname>:5280/admin
+
+sudo apt-get install pidgin

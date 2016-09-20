@@ -1,0 +1,26 @@
+
+@works = Work.joins(:acts).group("acts.work_id").order("created_at 
+asc").paginate(:page => params[:page])
+
+
+rake time:zones:all
+SQL> SELECT * FROM gv$timezone_names;
+
+
+rails g migration add_avatar_to_users avatar:string
+
+
+#change_project_name
+config.ru
+Rakefile
+config/application.rb
+config/environment.rb
+config/mongoid.yml
+config/routes.rb
+config/initializers/secret_token.rb
+config/initializers/session_store.rb
+config/environments/development.rb
+config/environments/production.rb
+config/environments/test.rb
+app/views/layouts/application.html.erb
+

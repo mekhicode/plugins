@@ -1,0 +1,29 @@
+
+wget http://downloads.typesafe.com/typesafe-activator/1.2.10/typesafe-activator-1.2.10-minimal.zip
+unzip typesafe-activator-1.2.10-minimal.zip
+mv activator-1.2.10-minimal ~/software/activator-1.2.10
+
+vi ~/.bash_profile
+export ACTIVATOR_HOME=$HOME/software/activator-1.2.10
+export PATH=$ACTIVATOR_HOME:$PATH
+
+vi ~/.bashrc
+[[ -f $HOME/.bash_profile ]] && . $HOME/.bash_profile
+
+source ~/.bash_profile
+
+activator
+> tasks
+> settings
+> dependencies
+> clean
+> compile
+> eclipse with-source=true
+> test
+> test-only <some_package>.<some_class>
+> run
+> dist
+> ; <command>
+> ~ <command>
+> ~ run <port>
+> exit

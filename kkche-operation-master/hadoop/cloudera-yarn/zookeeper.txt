@@ -1,0 +1,8 @@
+
+sudo apt-get install zookeeper
+
+sudo apt-get install zookeeper-server
+
+sudo /etc/init.d/zookeeper-server init
+sudo service zookeeper-server start
+

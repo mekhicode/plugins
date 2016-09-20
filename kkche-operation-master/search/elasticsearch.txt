@@ -1,0 +1,580 @@
+
+wget -q -O - http://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
+
+echo 'deb http://packages.elasticsearch.org/elasticsearch/1.2/debian stable main' | \
+sudo tee /etc/apt/sources.list.d/elasticsearch.list
+
+# sudo apt-get install elasticsearch=1.2.1
+sudo apt-get update && sudo apt-get install elasticsearch
+
+sudo service elasticsearch start
+
+# status
+http://<es-host>:9200
+http://<es-host>:/_cat/nodes?v
+http://<es-host>:9200/_cat/health?v
+http://<es-host>:9200/_status?pretty=true
+http://<es-host>:9200/_stats?pretty=true
+http://<es-host>:9200/_mapping?pretty=true
+http://<es-host>:9200/_cat/indices?v
+
+# plugins
+cd /usr/share/elasticsearch/bin
+sudo ./plugin --install mobz/elasticsearch-head
+sudo ./plugin --install lukas-vlcek/bigdesk
+sudo ./plugin -i elasticsearch/marvel/latest
+
+http://localhost:9201/_plugin/head/
+http://localhost:9201/_plugin/bigdesk/
+http://localhost:9200/_plugin/marvel
+
+# cluster config
+sudo vim /etc/elasticsearch/elasticsearch.yml
+cluster.name: <cluster name>
+node.name: <node name>
+network.host: 192.168.0.1
+discovery.zen.ping.unicast.hosts: ["192.168.0.2","192.168.0.3[9300-9400]"]
+index.number_of_shards: 3
+index.number_of_replicas: 1
+# bootstrap.mlockall: true
+
+# log
+tail -f /var/log/elasticsearch/elasticsearch.log
+
+# API
+# http://<Node>:<Port>/<Index>/<Type>/<ID>
+
+# insert
+curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
+    "user" : "kimchy",
+    "post_date" : "2009-11-15T14:12:12",
+    "message" : "trying out Elasticsearch"
+}'
+# GET
+curl -XGET 'http://localhost:9200/twitter/tweet/1'
+
+# Setting
+curl -XPOST 'http://localhost:9200/twitter/_settings' -d'{
+  "index":{
+    "number_of_replicas":"2",
+    "number_of_shards":"3"
+  }
+}
+'
+# Count
+curl -XGET 'http://localhost:9200/twitter/tweet/_count'
+
+# Multi GET
+curl 'localhost:9200/_mget' -d '{
+    "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "1"
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "2"
+        }
+    ]
+}'
+# update
+curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
+    "script" : "ctx._source.counter += count",
+    "params" : {
+        "count" : 4
+    }
+}'
+
+# search
+http://<es-host>:9200/_search?pretty=true&size=100&&q=*
+# curl -XGET 'http://localhost:9200/_search?pretty=true&q=yuki'
+curl -XGET 'http://localhost:9200/twitter/tweet/_search?routing=kimchy' -d '{
+    "query": {
+        "filtered" : {
+            "query" : {
+                "query_string" : {
+                    "query" : "<some query here>"
+                }
+            },
+            "filter" : {
+                "term" : { "user" : "kimchy" }
+            }
+        }
+    }
+}'
+
+# suggest
+curl -XGET 'http://127.0.0.1:9200/<index name>/_suggest' -d ' {
+  "<return field name>" : {
+    "text" : "<input>",
+    "term" : {
+      "field" : "<field>"
+    }
+  }
+}'
+
+
+# backup
+curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
+    "type": "fs",
+    "settings": {
+        "location": "/home/ubuntu/backup/elasticsearch/my_backup",
+        "compress": true
+    }
+}'
+
+sudo chown -R elasticsearch:elasticsearch elasticsearch
+curl -XPUT "localhost:9200/_snapshot/my_backup/snapshot_1?wait_for_completion=true"
+# restore
+curl -XPOST "localhost:9200/_snapshot/my_backup/snapshot_1/_restore"
+
+# mongodb river 2.0.1-SNAPSHOT setup (elasticsearch 1.2.1)
+# mongodb must be config as a Replica Set
+
+# compile
+git clone https://github.com/richardwilly98/elasticsearch-river-mongodb.git
+cd elasticsearch-river-mongodb
+mvn package -DskipTests
+
+sudo mkdir /usr/share/elasticsearch/plugins/river-mongodb
+sudo cp /target/releases/elasticsearch-river-mongodb-2.0.1-SNAPSHOT.zip /usr/share/elasticsearch/plugins/river-mongodb
+cd /usr/share/elasticsearch/plugins/river-mongodb
+sudo unzip elasticsearch-river-mongodb-2.0.1-SNAPSHOT.zip && sudo rm elasticsearch-river-mongodb-2.0.1-SNAPSHOT.zip
+
+# install river plugin
+cd /usr/share/elasticsearch/
+# install elasticsearch-analysis-stempel (dependency)
+sudo ./bin/plugin -install elasticsearch/elasticsearch-analysis-stempel/2.2.0
+#sudo ./bin/plugin --install com.github.richardwilly98.elasticsearch/elasticsearch-river-mongodb/2.0.1
+sudo service elasticsearch restart
+
+curl -XPUT "localhost:9201/_river/<river name>/_meta" -d'
+{
+  "type": "mongodb",
+  "mongodb": {
+    "db": "<mongodb dbname>",
+    "collection": "<mongodb collection name>",
+    "gridfs": false
+  },
+  "index": {
+    "name": "<elasticsearch index name>",
+    "type": "<elasticsearch type>"
+  }
+}'
+
+http://<es-host>:9200/_plugin/river-mongodb/
+
+
+# elasticsearch-analysis-smartcn
+sudo ./plugin -install elasticsearch/elasticsearch-analysis-smartcn/2.2.0
+
+# elasticsearch-analysis-ik (1.2.7 elasticsearch 1.2.1)
+git clone https://github.com/medcl/elasticsearch-analysis-ik.git
+cd elasticsearch-analysis-ik
+mvn package -DskipTests
+sudo mkdir -p /usr/share/elasticsearch/plugins/analysis-ik
+
+sudo cp target/releases/elasticsearch-analysis-ik-1.2.7.zip /usr/share/elasticsearch/plugins/analysis-ik/
+sudo unzip /usr/share/elasticsearch/plugins/analysis-ik/elasticsearch-analysis-ik-1.2.7.zip && \
+sudo rm /usr/share/elasticsearch/plugins/analysis-ik/elasticsearch-analysis-ik-1.2.7.zip
+
+sudo cp -r config/ik /etc/elasticsearch/
+sudo vim /etc/elasticsearch/ik/IKAnalyzer.cfg.xml
+
+sudo vim /etc/elasticsearch/elasticsearch.yml
+index:
+  analysis:
+    analyzer:
+      ik:
+          alias: [ik_analyzer]
+          type: org.elasticsearch.index.analysis.IkAnalyzerProvider
+      ik_max_word:
+          type: ik
+          use_smart: false
+      ik_smart:
+          type: ik
+          use_smart: true
+
+# test
+curl -XPUT http://localhost:9200/testik
+curl -XPOST http://localhost:9200/testik/fulltext/_mapping -d'
+{
+  "fulltext": {
+    "_all": {
+      "indexAnalyzer": "ik",
+      "searchAnalyzer": "ik",
+      "term_vector": "no",
+      "store": "false"
+    },
+    "properties": {
+      "content": {
+        "type": "string",
+        "store": "no",
+        "term_vector": "with_positions_offsets",
+        "indexAnalyzer": "ik",
+        "searchAnalyzer": "ik",
+        "include_in_all": "true",
+        "boost": 8
+      }
+    }
+  }
+}'
+
+curl -XPUT http://localhost:9200/kanche/ -d '
+{
+  "mappings": {
+    "vehicle_spec_brief": {
+      "dynamic" : true,
+      "properties": {
+          "series": {
+            "type":"string",
+            "indexAnalyzer":"ik",
+            "searchAnalyzer":"ik"
+          }
+        }
+      }
+    }
+}
+'
+
+curl http://localhost:9200/index/_analyze?analyzer=ik -d'{"美国留给伊拉克的是个烂摊子吗"}'
+
+
+# elasticsearch-analysis-pinyin (elasticsearch 1.2.1 lucene 4.8.1)
+git clone https://github.com/medcl/elasticsearch-analysis-pinyin.git
+cd elasticsearch-analysis-pinyin
+vim pom.xml
+mvn package -DskipTests
+sudo mkdir /usr/share/elasticsearch/plugins/analysis-pinyin
+
+sudo cp target/releases/elasticsearch-analysis-pinyin-1.2.x.zip /usr/share/elasticsearch/plugins/analysis-pinyin/
+sudo unzip /usr/share/elasticsearch/plugins/analysis-pinyin/elasticsearch-analysis-pinyin-1.2.x.zip && \
+sudo rm /usr/share/elasticsearch/plugins/analysis-pinyin/elasticsearch-analysis-pinyin-1.2.x.zip
+
+# config
+sudo vim /etc/elasticsearch/elasticsearch.yml
+index:
+  analysis:
+    analyzer:
+      ik:
+          alias: [ik_analyzer]
+          type: org.elasticsearch.index.analysis.IkAnalyzerProvider
+      ik_max_word:
+          type: ik
+          use_smart: false
+      ik_smart:
+          type: ik
+          use_smart: true
+      pinyin_analyzer:
+          tokenizer: my_pinyin
+          filter: [standard,nGram]
+    tokenizer:
+      my_pinyin:
+          type: pinyin
+          first_letter: prefix
+          padding_char: ""
+
+# config
+sudo vim /etc/elasticsearch/elasticsearch.yml
+
+index:
+  analysis:
+    tokenizer:
+      my_pinyin:
+        type: pinyin
+        first_letter: prefix
+        padding_char: ''
+      pinyin_first_letter:
+        type: pinyin
+        first_letter: only
+      semicolon_spliter:
+        type: pattern
+        pattern: ";"
+      pct_spliter:
+        type: pattern
+        pattern: "[%]+"
+      ngram_1_to_2:
+        type: nGram
+        min_gram: 1
+        max_gram: 2
+      ngram_1_to_3:
+        type: nGram
+        min_gram: 1
+        max_gram: 3
+    filter:
+      ngram_min_3:
+        max_gram: 10
+        min_gram: 3
+        type: nGram
+      ngram_min_2:
+        max_gram: 10
+        min_gram: 2
+        type: nGram
+      ngram_min_1:
+        max_gram: 10
+        min_gram: 1
+        type: nGram
+      min2_length:
+        min: 2
+        max: 4
+        type: length
+      min3_length:
+        min: 3
+        max: 4
+        type: length
+      pinyin_first_letter:
+        type: pinyin
+        first_letter: only
+    analyzer:
+      lowercase_keyword:
+        type: custom
+        filter:
+        - lowercase
+        tokenizer: standard
+      lowercase_keyword_ngram_min_size1:
+        type: custom
+        filter:
+        - lowercase
+        - stop
+        - trim
+        - unique
+        tokenizer: nGram
+      lowercase_keyword_ngram_min_size2:
+        type: custom
+        filter:
+        - lowercase
+        - min2_length
+        - stop
+        - trim
+        - unique
+        tokenizer: nGram
+      lowercase_keyword_ngram_min_size3:
+        type: custom
+        filter:
+        - lowercase
+        - min3_length
+        - stop
+        - trim
+        - unique
+        tokenizer: ngram_1_to_3
+      lowercase_keyword_ngram:
+        type: custom
+        filter:
+        - lowercase
+        - stop
+        - trim
+        - unique
+        tokenizer: ngram_1_to_3
+      lowercase_keyword_without_standard:
+        type: custom
+        filter:
+        - lowercase
+        tokenizer: keyword
+      lowercase_whitespace:
+        type: custom
+        filter:
+        - lowercase
+        tokenizer: whitespace
+      ik:
+        alias:
+        - ik_analyzer
+        type: org.elasticsearch.index.analysis.IkAnalyzerProvider
+      ik_max_word:
+        type: ik
+        use_smart: false
+      ik_smart:
+        type: ik
+        use_smart: true
+      comma_spliter:
+        type: pattern
+        pattern: "[,|\\s]+"
+      pct_spliter:
+        type: pattern
+        pattern: "[%]+"
+      custom_snowball_analyzer:
+        type: snowball
+        language: English
+      simple_english_analyzer:
+        type: custome
+        tokenizer: whitespace
+        filter:
+        - standard
+        - lowercase
+        - snowball
+      edge_ngram:
+        type: custom
+        tokenizer: edgeNGram
+        filter:
+        - lowercase
+      pinyin_ngram_analyzer:
+        type: custom
+        tokenizer: my_pinyin
+        filter:
+        - lowercase
+        - nGram
+        - trim
+        - unique
+      pinyin_first_letter_analyzer:
+        type: custom
+        tokenizer: pinyin_first_letter
+        filter:
+        - standard
+        - lowercase
+      pinyin_first_letter_keyword_analyzer:
+        alias:
+        - pinyin_first_letter_analyzer_keyword
+        type: custom
+        tokenizer: keyword
+        filter:
+        - pinyin_first_letter
+        - lowercase
+      path_analyzer: #used for tokenize :/something/something/else
+        type: custom
+        tokenizer: path_hierarchy
+#      index_ansj:
+#        alias:
+#        - ansj_index_analyzer
+#        type: ansj_index
+#        # user_path: ansj/user
+#        # ambiguity: ansj/ambiguity.dic
+#        # stop_path: ansj/stopLibrary.dic
+#        is_name: false
+#        # is_num: true
+#        # is_quantifier: true
+#      query_ansj:
+#        - ansj_query_analyzer
+#        type: ansj_query
+#        # user_path: ansj/user
+#        # ambiguity: ansj/ambiguity.dic
+#        # stop_path: ansj/stopLibrary.dic
+#        is_name: false
+#        # is_num: true
+#        # is_quantifier: true
+#index.analysis.analyzer.default.type: mmseg
+#index.analysis.analyzer.default.type: keyword
+
+
+curl -XPUT http://localhost:9200/kanche/ -d'
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "pinyin_analyzer" : {
+                    "tokenizer" : "my_pinyin",
+                    "filter" : ["standard","nGram"]
+                }
+            },
+            "tokenizer" : {
+                "my_pinyin" : {
+                    "type" : "pinyin",
+                    "first_letter" : "prefix",
+                    "padding_char" : " "
+                }
+            }
+        }
+    }
+}'
+
+curl -XPOST http://localhost:9200/kanche/vehicle_spec_brief/_mapping -d'
+{
+  "vehicle_spec_brief": {
+    "dynamic": true,
+    "properties": {
+      "series": {
+        "type": "string",
+        "indexAnalyzer": "ik",
+        "searchAnalyzer": "ik"
+      },
+      "brand": {
+        "type": "string",
+        "index": "analyzed",
+        "fields": {
+          "raw": {
+            "type": "string",
+            "index": "not_analyzed"
+          },
+          "ik": {
+            "type": "string",
+            "analyzer": "ik",
+            "copy_to": "search_me"
+          },
+          "pinyin": {
+            "type": "string",
+            "store": "no",
+            "copy_to": "search_me",
+            "term_vector": "with_positions_offsets",
+            "analyzer": "pinyin_analyzer",
+            "boost": 1
+          },
+          "origin": {
+            "type": "string",
+            "store": "yes",
+            "analyzer": "keyword"
+          },
+          "brand_suggest": {
+            "type": "completion"
+          },
+          "search_me": {
+            "type": "string",
+            "analyzer": "keyword"
+          }
+        }
+      }
+    }
+  }
+}
+'
+
+curl -XGET 'http://192.168.1.171:9200/kanche/_search?q=%E4%B8%B0%E7%94%B0&from=0&size=30&pretty&sort=year_group:desc'
+
+curl -XPOST localhost:9200/kanche/_suggest -d '
+{
+  "vehicle_spec_brief" : {
+    "text" : "北",
+    "completion" : {
+      "field" : "brand.brand_suggest"
+    }
+  }
+}'
+
+
+# JDBC plugin for Elasticsearch
+
+sudo ./plugin --install jdbc --url http://xbib.org/repository/org/xbib/elasticsearch/plugin/elasticsearch-river-jdbc/1.2.1.1/elasticsearch-river-jdbc-1.2.1.1-plugin.zip
+sudo apt-get install libmysql-java
+sudo cp /usr/share/java/mysql-connector-java-5.1.28.jar /usr/share/elasticsearch/plugins/jdbc/
+
+curl -XPUT 'localhost:9200/_river/my_jdbc_river/_meta' -d '{
+    "type" : "jdbc",
+    "jdbc" : {
+        "url" : "jdbc:mysql://localhost:3306/water",
+        "user" : "root",
+        "password" : "",
+        "sql" : "select * from base_vehisrc"
+    }
+}'
+
+
+
+# Elasticsearch-hadoop
+## elasticsearch-hive
+
+mv elasticsearch-hadoop-hive-2.0.2.jar ../../apache-hive-0.13.1-bin/lib/
+hadoop fs -put elasticsearch-hadoop-2.0.2/ lib
+
+sudo vi $HIVE_HOME/conf/hive-site.xml
+<property>
+  <name>hive.aux.jars.path</name>
+  <value>/HDFSpath/elasticsearch-hadoop.jar</value>
+  <description>A comma separated list (with no spaces) of the jar files</description>
+</property>
+
+hive
+>CREATE  EXTERNAL TABLE `src_es`(
+  `key` bigint,
+  `value` string)
+  STORED BY 'org.elasticsearch.hadoop.hive.EsStorageHandler'
+TBLPROPERTIES('es.resource' = 'test/src',
+  'es.mapping.names' = 'key:keys_name , value:value_name');

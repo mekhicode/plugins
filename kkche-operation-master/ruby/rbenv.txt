@@ -1,0 +1,29 @@
+
+sudo apt-get install build-essential git
+git clone https://github.com/sstephenson/rbenv.git ~/.rbenv
+echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bash_profile
+echo 'eval "$(rbenv init -)"' >> ~/.bash_profile
+echo '[[ -f $HOME/.bash_profile ]] && . $HOME/.bash_profile' >> ~/.bashrc
+exec $SHELL -l
+
+git clone https://github.com/sstephenson/ruby-build.git ~/.rbenv/plugins/ruby-build
+
+rbenv versions
+rbenv version
+rbenv install --list
+rbenv install <version>
+rbenv global <version>
+rbenv local <version>
+rbenv shell <version>
+rbenv rehash
+rbenv which irb
+rbenv whence irb
+
+rbenv local --unset
+rbenv shell --unset
+
+cd ~/.rbenv
+git pull
+
+rbenv uninstall
+

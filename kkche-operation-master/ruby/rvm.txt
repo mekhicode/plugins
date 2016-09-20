@@ -1,0 +1,21 @@
+
+curl -sSL https://get.rvm.io | sudo bash -s stable --autolibs=enabled --ruby=2.0.0
+source /etc/profile.d/rvm.sh
+sudo usermod -aG rvm `whoami`
+cat /etc/group | grep rvm
+id -nG `whoami`
+rvm requirements
+rvm list known
+rvm list
+rvm install 2.0.0
+rvm use 2.0.0 --default
+rvm list default
+rvm system
+rvm default
+rvm gemdir
+rvm get latest
+rvm reload
+rvm upgrade 2.0.0-p353 2.0.0-p451
+rvm rubygems current
+rvm implode
+

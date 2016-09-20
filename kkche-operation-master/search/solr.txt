@@ -1,0 +1,31 @@
+
+tar xvzf solr-4.3.0.tgz
+sudo mv solr-4.3.0 /opt
+sudo chown -R `whoami`:root /opt/solr-4.3.0
+
+sudo vi /etc/profile.d/solr.sh
+export SOLR_HOME=/opt/solr-4.3.0
+
+cd $SOLR_HOME/example
+java -Djava.util.logging.config.file=etc/logging.properties -jar start.jar
+http://<hostname>:8983/solr
+
+solr_clustering_cmd="java -Dsolr.clustering.enabled=true -jar start.jar"
+nohup $solr_clustering_cmd > logs/clustering.log 2>&1 &
+kill -9 `ps aux | grep -i "$solr_clustering_cmd" | head -n 1 | awk '{print $2}'`
+http://<hostname>:8983/solr/collection1/clustering?q=*:*&wt=xml
+
+cd $SOLR_HOME/example
+rm -r solr/collection1/data/*
+rm -r solr/zoo_data
+
+#hostname-1
+java -Dbootstrap_confdir=./solr/collection1/conf -Dcollection.configName=myconf \
+-DzkRun -DnumShards=2 -DzkHost=<hostname>:9983 -jar start.jar
+
+#hostname-2
+java -Djetty.port=8983 -DzkHost=<hostname>:9983 -jar start.jar
+
+http://<hostname>:8983/solr/#/~cloud
+
+vi solr/zoo.cfg

@@ -1,0 +1,185 @@
+
+#on the controller node
+# apt-get install neutron-server
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+control_exchange = neutron
+rabbit_host = <controller_host>
+rabbit_password = <rabbit_pass>
+notification_driver = neutron.openstack.common.notifier.rabbit_notifier
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+[keystone_authtoken]
+admin_tenant_name=service
+admin_user=neutron
+admin_password=<neutron_pass>
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini 
+[ovs]
+tenant_network_type = gre
+tunnel_id_ranges = 1:1000
+enable_tunneling = True
+
+# service neutron-server restart
+
+#on the compute node
+# vi /etc/nova/nova.conf
+network_api_class=nova.network.neutronv2.api.API
+neutron_admin_username=neutron
+neutron_admin_password=<neutron_pass>
+neutron_admin_auth_url=http://<controller_host>:35357/v2.0/
+neutron_auth_strategy=keystone
+neutron_admin_tenant_name=service
+neutron_url=http://<controller_host>:9696/
+
+#on the compute and network l2 agent
+# apt-get install neutron-plugin-openvswitch-agent openvswitch-switch
+
+# ovs-vsctl add-br br-int
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+control_exchange = neutron
+rabbit_host = <controller_host>
+rabbit_password = <rabbit_pass>
+notification_driver = neutron.openstack.common.notifier.rabbit_notifier
+[database]
+connection = mysql://neutron:<neutron_dbpass>@<controller_host>/neutron
+
+# vi /etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini 
+[ovs]
+tenant_network_type = gre
+tunnel_id_ranges = 1:1000
+enable_tunneling = True
+local_ip = <local_ip>
+
+# ovs-vsctl --may-exist add-br br-int
+
+# service neutron-plugin-openvswitch-agent restart
+
+#on the network dhcp agent
+# apt-get install neutron-dhcp-agent
+
+# vi /etc/neutron/neutron.conf
+[DEFAULT]
+core_plugin = neutron.plugins.openvswitch.ovs_neutron_plugin.OVSNeutronPluginV2
+control_exchange = neutron
+rabbit_host = <controller_host>
+rabbit_password = <rabbit_pass>
+notification_driver = neutron.openstack.common.notifier.rabbit_notifier
+allow_overlapping_ips = True
+
+# vi /etc/neutron/dhcp_agent.ini
+interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+
+# service neutron-dhcp-agent restart
+
+#on the network l3 agent
+# apt-get install neutron-l3-agent
+
+# ovs-vsctl add-br br-ex
+
+# ovs-vsctl add-port br-ex eth0
+
+# vi /etc/neutron/l3_agent.ini
+[DEFAULT]
+interface_driver=neutron.agent.linux.interface.OVSInterfaceDriver
+use_namespaces=True
+
+# service neutron-l3-agent restart
+
+#logical configuration on the network node
+# neutron net-create Ext-Net --provider:network_type local --router:external true
+
+# neutron subnet-create Ext-Net 30.0.0.0/24 --disable-dhcp
+
+# ip addr add 30.0.0.100/24 dev br-ex
+# ip link set br-ex up
+
+# neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+ --os-auth-url=http://localhost:5000/v2.0 net-create TenantA-Net
+
+# neutron net-show TenantA-Net
+
+# neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 subnet-create TenantA-Net 10.0.0.0/24
+
+$ nova --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 boot --image tty --flavor 1 \
+  --nic net-id=7d0e8d5d-c63c-4f13-a117-4dc4e33e7d68 TenantA_VM1
+
+$ nova --os-tenant-name TenantA --os-username UserA --os-password password \
+   --os-auth-url=http://localhost:5000/v2.0 list
+
+# neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 router-create TenantA-R1
+
+# neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 router-interface-add \
+  TenantA-R1 51e2c223-0492-4385-b6e9-83d4e6d10657
+
+# neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 \
+  router-gateway-set TenantA-R1 Ext-Net
+
+# neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 floatingip-create Ext-Net
+
+$ neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 port-list -- \
+  --device_id 7c5e6499-7ef7-4e36-8216-62c2941d21ff
+
+$ neutron --os-tenant-name TenantA --os-username UserA --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 floatingip-associate \
+  5a1f90ed-aa3c-4df3-82cb-116556e96bf1 6071d430-c66e-4125-b972-9a937c427520
+
+$ neutron floatingip-list
+
+$ ping 192.168.1.1
+$ ping 30.0.0.2
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 net-create TenantC-Net1
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+   --os-auth-url=http://localhost:5000/v2.0 subnet-create TenantC-Net1 \
+    10.0.0.0/24 --name TenantC-Subnet1
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 net-create TenantC-Net2
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 subnet-create TenantC-Net2 \
+  10.0.1.0/24 --name TenantC-Subnet2
+
+# neutron net-show TenantC-Net1
+# neutron net-show TenantC-Net2
+
+# nova --os-tenant-name TenantC --os-username UserC --os-password password  \
+  --os-auth-url=http://localhost:5000/v2.0 boot --image tty --flavor 1 \
+  --nic net-id=91309738-c317-40a3-81bb-bed7a3917a85 TenantC_VM1
+
+# nova --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 boot --image tty --flavor 1 \
+  --nic net-id=5b373ad2-7866-44f4-8087-f87148abd623 TenantC_VM3
+
+# nova --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 list
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 router-create TenantC-R1
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 router-interface-add \
+  TenantC-R1 cf03fd1e-164b-4527-bc87-2b2631634b83
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 router-interface-add \
+  TenantC-R1 38f0b2f0-9f98-4bf6-9520-f4abede03300
+
+# neutron --os-tenant-name TenantC --os-username UserC --os-password password \
+  --os-auth-url=http://localhost:5000/v2.0 \
+  router-gateway-set TenantC-R1 Ext-Net
+
